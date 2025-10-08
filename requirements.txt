@@ -35,6 +35,11 @@ pandas>=2.1.0
 matplotlib>=3.7.0
 seaborn>=0.13.0
 
+# Maze generation and processing (for submodules)
+jaxtyping>=0.2.0  # for maze-dataset
+muutils>=0.6.0  # for maze-dataset serialization
+networkx>=3.0  # for maze algorithms
+
 # Logging and monitoring
 loguru>=0.7.2
 rich>=13.7.0  # for beautiful terminal output
@@ -51,3 +56,6 @@ types-requests>=2.31.0
 # Documentation
 sphinx>=7.2.0
 sphinx-rtd-theme>=2.0.0
+
+# AWS
+boto3>=1.34.0

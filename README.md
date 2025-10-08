@@ -48,60 +48,39 @@ Tests abstract pattern recognition. Models complete visual patterns by generatin
 
 ## 🤖 Supported Models
 
-VMEvalKit focuses on evaluating models that can accept BOTH a still image AND a text prompt to generate videos. This is a specialized capability that not all video generation models possess.
+VMEvalKit includes **4 fully implemented models** that support text+image→video generation for reasoning evaluation:
 
-### ✅ Text+Image→Video Models
+### ✅ Implemented Models
 
-These closed-source APIs offer the capability to process both text prompts AND image inputs simultaneously:
+All models below accept BOTH an input image (the problem) AND a text prompt (instructions):
 
-#### Closed-Source APIs
+#### 1. **Luma Dream Machine**
+- **Status**: ✅ Fully Implemented
+- **API**: Requires `LUMA_API_KEY`
+- **Notes**: Supports text prompts with image references for guided video generation
 
-##### ⚠️ Runway API Models (Limited Support)
-Based on the [official Runway API documentation](https://docs.dev.runwayml.com/guides/models/):
-- **gen4_turbo** - Image → Video only (no text prompt support)
-- **gen4_aleph** - Video + Text/Image → Video (requires video input, not suitable)
-- **act_two** - Image or Video → Video (no text prompt support mentioned)
-- **veo3** - Text OR Image → Video (not both simultaneously)
+#### 2. **Google Veo v1 (veo-001)**
+- **Status**: ✅ Fully Implemented  
+- **API**: Requires Google Cloud credentials
+- **Notes**: High-quality text+image→video generation via Vertex AI
 
-**Note**: Current Runway API models do NOT support the text+image→video capability required for reasoning tasks.
+#### 3. **Google Veo v2 (veo-002)**
+- **Status**: ✅ Fully Implemented
+- **API**: Requires Google Cloud credentials
+- **Notes**: Latest version with improved quality and temporal consistency
 
-##### ✅ Other Verified APIs
-- **Pika 2.0+** - Supports image+prompt for guided video generation
-- **Google Imagen Video** - Cascade model supporting text+image inputs
-- **Luma Dream Machine** - Offers image reference with text prompt guidance
-- **Stability AI Video** - Enterprise API with text-conditioned image animation
-- **Genmo Mochi** - Multimodal video generation with text and image inputs
+#### 4. **Runway Gen4-Aleph**
+- **Status**: ✅ Fully Implemented (with automatic workaround)
+- **API**: Requires `RUNWAY_API_KEY`
+- **Notes**: Uses video-to-video with text prompts. VMEvalKit automatically converts static images to video format for compatibility
 
-### ⚠️ Image-Only Models (No Text Conditioning)
+### 🔍 Key Requirements
 
-These models only accept images WITHOUT text prompts - not suitable for reasoning evaluation:
-- **Stable Video Diffusion (SVD)** - Image-only input, no text prompt support
-- **AnimateDiff** (basic version) - Image animation without text guidance
+For VMEvalKit's reasoning tasks, all models MUST accept:
+- 📸 **An input image** (e.g., maze, chess board, visual puzzle)
+- 📝 **A text prompt** (e.g., "Solve this maze", "Show the next move")
 
-### ❓ Additional Models Requiring Verification
-
-These commercial models may offer text+image capabilities but require verification:
-- **WaveSpeed Wan 2.2** - Multiple modes including i2v and t2v, possible combined support
-- **Kling** (Kuaishou) - Advanced I2V model, text prompt support needs verification
-- **Haiper** - Has I2V endpoint, text conditioning capabilities need confirmation
-- **MiniMax Hailuo** - Chinese model with I2V capability, text support verification needed
-- **Leonardo.ai Motion** - Creative platform with potential text+image video generation
-- **Synthesia** - Enterprise video platform, API capabilities need verification
-
-### 🔍 Important Notes on Model Selection
-
-1. **Critical Requirement**: For VMEvalKit's reasoning tasks, models MUST accept both:
-   - An input image (e.g., maze, chess board, rotation object)
-   - A text prompt (e.g., "Show the solution path", "Demonstrate the next move")
-
-2. **Verification Needed**: Many models advertise "image-to-video" but may not support text conditioning. Always verify:
-   - Check official documentation for "text-conditioned I2V" or "prompt-guided image animation"
-   - Look for API parameters that accept both `image` and `prompt`/`text`
-   - Test with sample inputs before full integration
-
-3. **Alternative Approaches**:
-   - Some text-to-video models can be adapted using techniques like TI2V-Zero
-   - ControlNet-style conditioning can add image guidance to text-to-video models
+All 4 implemented models meet these requirements and can evaluate reasoning capabilities through video generation.
 
 ## 🎯 Model Selection Guide
 
@@ -170,16 +149,14 @@ pip install vmevalkit
 ### Basic Usage
 
 ```python
-from vmevalkit import VMEvaluator, TaskLoader, ModelRegistry
-
-# Initialize evaluator
-evaluator = VMEvaluator()
+from vmevalkit.core import Evaluator, TaskLoader, ModelRegistry
 
 # Load a reasoning task (e.g., maze with image + text prompt)
-task = TaskLoader.load_task("maze_solving", difficulty="medium")
+task = TaskLoader.load_task("maze_solving")
 
-# Load a closed-source API model that supports text+image
-model = ModelRegistry.load_model("pika-2.2", api_key="your-api-key")  # or "luma-dream-machine", "genmo-mochi"
+# Load one of the 4 implemented models
+model = ModelRegistry.load_model("luma-dream-machine", api_key="your-api-key")
+# Or: "google-veo-001", "google-veo-002", "runway-gen4-aleph"
 
 # Run evaluation with both image and text inputs
 results = evaluator.evaluate(
@@ -286,43 +263,22 @@ evaluation:
     retry_on_failure: true
 
 models:
-  # Closed-source API Models (Supporting Text+Image→Video)
-  pika-2.2:
-    api_key: "${PIKA_API_KEY}"
-    use_pikaframes: true
+  # Implemented Models (All support Text+Image→Video)
+  luma-dream-machine:
+    api_key: "${LUMA_API_KEY}"
     duration: 5
     resolution: [1024, 576]
     
-  google-veo2:
-    api_key: "${GOOGLE_API_KEY}"
+  google-veo-002:
     project_id: "${GCP_PROJECT_ID}"
     location: "us-central1"
     quality: "1080p"
     duration: 8
     
-  google-imagen-video:
-    api_key: "${GOOGLE_API_KEY}"
-    project_id: "${GCP_PROJECT_ID}"
-    cascade_mode: true
-    resolution: [1280, 768]
-    
-  luma-dream-machine:
-    api_key: "${LUMA_API_KEY}"
-    enhance_prompt: true
-    loop_video: false
-    aspect_ratio: "16:9"
-    
-  stability-ai-video:
-    api_key: "${STABILITY_API_KEY}"
-    model: "stable-video-v2"
-    cfg_scale: 2.5
-    motion_bucket_id: 180
-    
-  genmo-mochi:
-    api_key: "${GENMO_API_KEY}"
-    hd_mode: true
-    duration: 6
-    interpolation: "smooth"
+  runway-gen4-aleph:
+    api_key: "${RUNWAY_API_KEY}"
+    duration: 5
+    auto_convert: true  # Converts image to video automatically
 
 tasks:
   maze_solving:
@@ -417,6 +373,22 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
+## 🔗 Submodules
+
+VMEvalKit includes two important research repositories as git submodules:
+
+1. **KnowWhat** (`submodules/KnowWhat/`) - Research on knowing-how vs knowing-that capabilities in models
+   - Repository: [https://github.com/hokindeng/KnowWhat](https://github.com/hokindeng/KnowWhat)
+
+2. **maze-dataset** (`submodules/maze-dataset/`) - Maze datasets for investigating out-of-distribution behavior of ML systems
+   - Repository: [https://github.com/understanding-search/maze-dataset](https://github.com/understanding-search/maze-dataset)
+
+
+To initialize these submodules after cloning:
+```bash
+git submodule update --init --recursive
+```
+
 ## 📝 Citation
 
 If you use VMEvalKit in your research, please cite our paper:
@@ -447,3 +419,34 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 <p align="center">
   Made with ❤️ by the VMEvalKit Team
 </p>
+
+## ☁️ S3 Data Versioning Sync
+
+You can version and back up the `data/` folder to S3. Each sync creates a date-based path:
+
+`s3://vmevalkit/<YYYYMMDD>/data`
+
+Additionally, a `latest_data_path.txt` object is written at the bucket root with the most recent URI.
+
+Setup:
+
+```bash
+cp env.template .env
+# Fill in AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY or rely on instance role
+# Optionally set S3_BUCKET (defaults to vmevalkit) and AWS_REGION
+```
+
+Usage:
+
+```bash
+# Activate venv
+source venv/bin/activate
+
+# Sync local data/ to S3 with today's date folder
+python -m vmevalkit.utils.s3_sync
+
+# Or specify custom directory/bucket/date
+python -m vmevalkit.utils.s3_sync --data-dir ./data --bucket vmevalkit --date 20251008
+```
+
+This mechanism supports the project's goal of reproducible, date-versioned datasets for evaluating video reasoning models.

@@ -1,0 +1,6 @@
+[submodule "submodules/KnowWhat"]
+	path = submodules/KnowWhat
+	url = https://github.com/hokindeng/KnowWhat
+[submodule "submodules/maze-dataset"]
+	path = submodules/maze-dataset
+	url = https://github.com/understanding-search/maze-dataset

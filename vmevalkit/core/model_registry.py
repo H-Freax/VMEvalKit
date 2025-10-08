@@ -16,21 +16,15 @@ class ModelRegistry:
     IMPORTANT: Only models that support text+image→video are suitable for VMEvalKit.
     """
     
-    # Registered model classes
+    # Registered model classes - All support text+image input
     _models: Dict[str, Type[BaseVideoModel]] = {
-        # Working models (support text+image)
         "luma-dream-machine": LumaDreamMachine,
         "google-veo-001": GoogleVeo,
         "google-veo-002": GoogleVeo,
-        
-        # Runway models (DO NOT support text+image - included for reference)
-        "runway-gen4-turbo": RunwayModel,
-        "runway-gen4-aleph": RunwayModel,
-        "runway-act-two": RunwayModel,
-        "runway-veo3": RunwayModel,
+        "runway-gen4-aleph": RunwayModel,  # Supports text+image via workaround
     }
     
-    # Model compatibility status
+    # Model compatibility status - Only includes implemented models
     _compatibility = {
         "luma-dream-machine": {
             "supports_text_image": True,
@@ -47,35 +41,10 @@ class ModelRegistry:
             "status": "✅ Compatible",
             "notes": "Google Veo v2 (latest) - Improved quality and consistency, text+image→video"
         },
-        "pika-2.2": {
+        "runway-gen4-aleph": {
             "supports_text_image": True,
             "status": "✅ Compatible",
-            "notes": "Image+prompt for guided generation"
-        },
-        "genmo-mochi": {
-            "supports_text_image": True,
-            "status": "✅ Compatible", 
-            "notes": "Multimodal text+image inputs"
-        },
-        "runway-gen4-turbo": {
-            "supports_text_image": False,
-            "status": "❌ Incompatible",
-            "notes": "Image-only input, no text prompt"
-        },
-        "runway-gen4-aleph": {
-            "supports_text_image": False,
-            "status": "❌ Incompatible",
-            "notes": "Requires VIDEO input, not image+text"
-        },
-        "runway-act-two": {
-            "supports_text_image": False,
-            "status": "❌ Incompatible",
-            "notes": "No text prompt support"
-        },
-        "runway-veo3": {
-            "supports_text_image": False,
-            "status": "❌ Incompatible",
-            "notes": "Text OR image, not both"
+            "notes": "Video+text input - works by converting image to video first (automatic workaround)"
         }
     }
     
@@ -105,14 +74,9 @@ class ModelRegistry:
         # Check compatibility
         if model_name in cls._compatibility:
             compat = cls._compatibility[model_name]
-            print(f"\nModel: {model_name}")
+            print(f"\nLoading model: {model_name}")
             print(f"Status: {compat['status']}")
             print(f"Notes: {compat['notes']}")
-            
-            if not compat["supports_text_image"]:
-                print("\n⚠️  WARNING: This model does not support text+image→video generation!")
-                print("   VMEvalKit requires models that accept BOTH text prompts AND images.")
-                print("   Consider using: luma-dream-machine, google-veo-002, pika-2.2, or genmo-mochi instead.\n")
         
         # Handle Runway models specially
         if model_name.startswith("runway-"):
@@ -133,12 +97,11 @@ class ModelRegistry:
         
         # Model not found
         available = list(cls._models.keys())
-        compatible = [m for m, c in cls._compatibility.items() if c["supports_text_image"]]
         
         raise ValueError(
             f"Unknown model: {model_name}\n"
             f"Available models: {available}\n"
-            f"Compatible with VMEvalKit: {compatible}"
+            f"All models support text+image→video generation."
         )
     
     @classmethod
