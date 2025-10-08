@@ -57,7 +57,7 @@ def write_latest_marker(bucket: str, latest_path: str) -> None:
 
 
 def sync_data_folder(
-    data_dir: Path = Path(__file__).resolve().parents[2] / "data",
+    data_dir: Path = Path(__file__).resolve().parent,
     bucket: str = os.getenv("S3_BUCKET", "vmevalkit"),
     date_prefix: Optional[str] = None,
 ) -> str:
@@ -75,7 +75,7 @@ def main(argv: list[str]) -> int:
     import argparse
 
     parser = argparse.ArgumentParser(description="Sync local data/ to S3 with date-versioned prefix.")
-    parser.add_argument("--data-dir", type=str, default=str(Path(__file__).resolve().parents[2] / "data"), help="Path to local data directory")
+    parser.add_argument("--data-dir", type=str, default=str(Path(__file__).resolve().parent), help="Path to local data directory")
     parser.add_argument("--bucket", type=str, default=os.getenv("S3_BUCKET", "vmevalkit"), help="S3 bucket name")
     parser.add_argument("--date", type=str, default=None, help="Override date folder (YYYYMMDD)")
     args = parser.parse_args(argv)

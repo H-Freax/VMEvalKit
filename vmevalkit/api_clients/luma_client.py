@@ -15,10 +15,9 @@ import json
 from io import BytesIO
 from PIL import Image
 from tenacity import retry, stop_after_attempt, wait_exponential
-import uuid
-import boto3
 
 from ..models.base import BaseVideoModel
+from ..utils.local_image_server import get_image_server
 
 
 class LumaAPIError(Exception):
@@ -42,7 +41,7 @@ class LumaDreamMachine(BaseVideoModel):
         loop_video: bool = False,
         aspect_ratio: str = "16:9",
         model: str = "ray-2",
-        s3_bucket: Optional[str] = None,
+        verbose: bool = True,
         **kwargs
     ):
         """
@@ -53,6 +52,7 @@ class LumaDreamMachine(BaseVideoModel):
             enhance_prompt: Whether to use Luma's prompt enhancement
             loop_video: Whether to create looping videos
             aspect_ratio: Output aspect ratio
+            verbose: Whether to show detailed progress updates
         """
         self.api_key = api_key or os.getenv("LUMA_API_KEY")
         if not self.api_key:
@@ -69,10 +69,11 @@ class LumaDreamMachine(BaseVideoModel):
         self.loop_video = loop_video
         self.aspect_ratio = aspect_ratio
         self.model = model
-        self.s3_bucket = s3_bucket or os.getenv("S3_BUCKET", "vmevalkit")
+        self.verbose = verbose
         
         # Print debug info
-        print(f"[Luma] Initialized with enhance_prompt={enhance_prompt}, model={model}")
+        if self.verbose:
+            print(f"[Luma] Initialized with enhance_prompt={enhance_prompt}, model={model}")
         
         super().__init__(name="luma_dream_machine", **kwargs)
     
@@ -140,7 +141,7 @@ class LumaDreamMachine(BaseVideoModel):
         
         print(f"[Luma] Sending request with:")
         print(f"  - Prompt: {text_prompt}")
-        print(f"  - Image URL: {image_url[:100]}...")
+        print(f"  - Image URL: {image_url}")
         print(f"  - Model: {self.model}")
         print(f"  - Enhance prompt: {self.enhance_prompt}")
 
@@ -162,30 +163,36 @@ class LumaDreamMachine(BaseVideoModel):
         return buffered.getvalue()
 
     def _ensure_image_url(self, image: Union[str, Path, Image.Image]) -> str:
-        """Return a URL for the image. If local/image object, upload to S3 and return a presigned URL."""
-        if isinstance(image, (str, Path)):
-            s = str(image)
-            if s.startswith("http://") or s.startswith("https://"):
-                return s
-            pil = self.preprocess_image(image)
-        else:
-            pil = self.preprocess_image(image)
-
-        data = self._encode_image(pil)
-        key = f"uploads/images/{uuid.uuid4().hex}.png"
-        session = boto3.session.Session(
-            aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-            aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-            aws_session_token=os.getenv("AWS_SESSION_TOKEN"),
-            region_name=os.getenv("AWS_REGION", os.getenv("AWS_DEFAULT_REGION", "us-east-1")),
-        )
-        s3 = session.client("s3")
-        s3.put_object(Bucket=self.s3_bucket, Key=key, Body=data, ContentType="image/png")
-        url = s3.generate_presigned_url(
-            ClientMethod='get_object',
-            Params={'Bucket': self.s3_bucket, 'Key': key},
-            ExpiresIn=3600
-        )
+        """
+        Ensure we have a public HTTP URL for the image.
+        
+        According to Luma docs:
+        "You should upload and use your own cdn image urls, 
+        currently this is the only way to pass an image"
+        """
+        if isinstance(image, str) and (image.startswith("http://") or image.startswith("https://")):
+            # Already a public URL
+            return image
+        
+        # For local images, we need to serve them via HTTP
+        # Start local server if needed
+        server = get_image_server(directory=os.getcwd())
+        
+        # Save image to a temporary file if it's a PIL Image
+        if isinstance(image, Image.Image):
+            temp_path = Path("temp_image.png")
+            image.save(temp_path)
+            image = temp_path
+        
+        # Convert to Path object
+        image_path = Path(image)
+        if not image_path.is_absolute():
+            image_path = Path(os.getcwd()) / image_path
+        
+        # Get HTTP URL from local server
+        url = server.get_url(str(image_path))
+        
+        print(f"[Luma] Serving local image via HTTP: {url}")
         return url
     
     @retry(
@@ -224,10 +231,10 @@ class LumaDreamMachine(BaseVideoModel):
         self,
         generation_id: str,
         max_wait: int = 600,
-        poll_interval: int = 5
+        initial_poll_interval: int = 2
     ) -> str:
         """
-        Poll for generation completion.
+        Poll for generation completion with exponential backoff.
         
         Returns:
             URL of generated video
@@ -235,6 +242,15 @@ class LumaDreamMachine(BaseVideoModel):
         endpoint = f"{self.BASE_URL}/generations/{generation_id}"
         
         start_time = time.time()
+        poll_count = 0
+        poll_interval = initial_poll_interval
+        max_poll_interval = 30  # Cap at 30 seconds
+        last_status = None
+        
+        if self.verbose:
+            print(f"\n[Luma] Waiting for generation {generation_id} to complete...")
+            print(f"[Luma] This typically takes 2-4 minutes depending on server load.")
+        
         while time.time() - start_time < max_wait:
             try:
                 response = requests.get(endpoint, headers=self.headers)
@@ -242,15 +258,64 @@ class LumaDreamMachine(BaseVideoModel):
                 data = response.json()
                 
                 status = data.get("state")
+                elapsed = int(time.time() - start_time)
+                
+                # Show progress update if status changed or periodically
+                if status != last_status or (self.verbose and poll_count % 3 == 0):
+                    # Format elapsed time
+                    mins, secs = divmod(elapsed, 60)
+                    time_str = f"{mins}m {secs}s" if mins > 0 else f"{secs}s"
+                    
+                    if self.verbose:
+                        print(f"[Luma] Status: {status} | Elapsed: {time_str} | Next check in {poll_interval}s")
+                    elif status != last_status:
+                        print(f"[Luma] Status: {status} | Elapsed: {time_str}")
+                    
+                    last_status = status
                 
                 if status == "completed":
-                    return data["video"]["url"]
+                    if self.verbose:
+                        print(f"[Luma] ✓ Generation completed in {elapsed} seconds!")
+                    
+                    # Handle different response formats
+                    video_url = None
+                    if "video" in data and "url" in data["video"]:
+                        video_url = data["video"]["url"]
+                    elif "assets" in data and "video" in data["assets"]:
+                        video_url = data["assets"]["video"]
+                    elif "download_url" in data:
+                        video_url = data["download_url"]
+                    
+                    if video_url:
+                        return video_url
+                    else:
+                        # Debug: print the actual response structure
+                        if self.verbose:
+                            print(f"[Luma] DEBUG: Response structure: {list(data.keys())}")
+                            if "assets" in data:
+                                print(f"[Luma] DEBUG: Assets keys: {list(data['assets'].keys())}")
+                        raise LumaAPIError(f"Could not find video URL in response: {data}")
                 elif status == "failed":
                     error_msg = data.get("failure_reason", "Unknown error")
                     raise LumaAPIError(f"Generation failed: {error_msg}")
                 
-                # Still processing
+                # Still processing - sleep with exponential backoff
                 time.sleep(poll_interval)
+                poll_count += 1
+                
+                # Exponential backoff: start fast, then slow down
+                if poll_count <= 5:
+                    # First 5 polls: every 2 seconds
+                    poll_interval = initial_poll_interval
+                elif poll_count <= 10:
+                    # Next 5 polls: every 5 seconds  
+                    poll_interval = 5
+                elif poll_count <= 20:
+                    # Next 10 polls: every 10 seconds
+                    poll_interval = 10
+                else:
+                    # After that: increase gradually up to max
+                    poll_interval = min(poll_interval * 1.2, max_poll_interval)
                 
             except requests.exceptions.RequestException as e:
                 raise LumaAPIError(f"Failed to check status: {e}")

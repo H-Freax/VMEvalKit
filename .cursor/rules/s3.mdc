@@ -1,0 +1,5 @@
+---
+alwaysApply: true
+---
+
+WE ARE ONLY USING THE AWS S3 BUCKET for data saving. Please always use the task data locally to run your inferences.

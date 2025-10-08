@@ -443,10 +443,10 @@ Usage:
 source venv/bin/activate
 
 # Sync local data/ to S3 with today's date folder
-python -m vmevalkit.utils.s3_sync
+python data/s3_sync.py
 
 # Or specify custom directory/bucket/date
-python -m vmevalkit.utils.s3_sync --data-dir ./data --bucket vmevalkit --date 20251008
+python data/s3_sync.py --data-dir ./data --bucket vmevalkit --date 20251008
 ```
 
 This mechanism supports the project's goal of reproducible, date-versioned datasets for evaluating video reasoning models.
