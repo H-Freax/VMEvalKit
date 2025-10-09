@@ -48,31 +48,26 @@ Tests abstract pattern recognition. Models complete visual patterns by generatin
 
 ## 🤖 Supported Models
 
-VMEvalKit includes **4 fully implemented models** that support text+image→video generation for reasoning evaluation:
+VMEvalKit includes **3 verified Luma models** that support text+image→video generation for reasoning evaluation:
 
 ### ✅ Implemented Models
 
 All models below accept BOTH an input image (the problem) AND a text prompt (instructions):
 
-#### 1. **Luma Dream Machine**
-- **Status**: ✅ Fully Implemented
+#### 1. **Luma Dream Machine** (luma-dream-machine)
+- **Status**: ✅ Verified & Working
 - **API**: Requires `LUMA_API_KEY`
-- **Notes**: Supports text prompts with image references for guided video generation
+- **Notes**: Default Luma model - Supports text prompts with image references for guided video generation
 
-#### 2. **Google Veo v1 (veo-001)**
-- **Status**: ✅ Fully Implemented  
-- **API**: Requires Google Cloud credentials
-- **Notes**: High-quality text+image→video generation via Vertex AI
+#### 2. **Luma Ray Flash 2** (luma-ray-flash-2)
+- **Status**: ✅ Verified & Working
+- **API**: Requires `LUMA_API_KEY`
+- **Notes**: Fast generation model with good quality for rapid prototyping
 
-#### 3. **Google Veo v2 (veo-002)**
-- **Status**: ✅ Fully Implemented
-- **API**: Requires Google Cloud credentials
-- **Notes**: Latest version with improved quality and temporal consistency
-
-#### 4. **Runway Gen4-Aleph**
-- **Status**: ✅ Fully Implemented (with automatic workaround)
-- **API**: Requires `RUNWAY_API_KEY`
-- **Notes**: Uses video-to-video with text prompts. VMEvalKit automatically converts static images to video format for compatibility
+#### 3. **Luma Ray 2** (luma-ray-2)
+- **Status**: ✅ Verified & Working
+- **API**: Requires `LUMA_API_KEY`
+- **Notes**: High-quality model with improved temporal consistency
 
 ### 🔍 Key Requirements
 
@@ -80,7 +75,7 @@ For VMEvalKit's reasoning tasks, all models MUST accept:
 - 📸 **An input image** (e.g., maze, chess board, visual puzzle)
 - 📝 **A text prompt** (e.g., "Solve this maze", "Show the next move")
 
-All 4 implemented models meet these requirements and can evaluate reasoning capabilities through video generation.
+All 3 verified models meet these requirements and can evaluate reasoning capabilities through video generation.
 
 ## 🎯 Model Selection Guide
 
@@ -198,7 +193,7 @@ vmevalkit batch luma-dream-machine \
     --workers 4
 
 # Compare multiple models
-vmevalkit batch luma-dream-machine google-veo-001 \
+vmevalkit batch luma-dream-machine luma-ray-flash-2 luma-ray-2 \
     --dataset data/tasks.json \
     --max-tasks 10
 ```
@@ -296,22 +291,21 @@ evaluation:
     retry_on_failure: true
 
 models:
-  # Implemented Models (All support Text+Image→Video)
+  # Verified Luma Models (All support Text+Image→Video)
   luma-dream-machine:
     api_key: "${LUMA_API_KEY}"
     duration: 5
     resolution: [1024, 576]
     
-  google-veo-002:
-    project_id: "${GCP_PROJECT_ID}"
-    location: "us-central1"
-    quality: "1080p"
-    duration: 8
-    
-  runway-gen4-aleph:
-    api_key: "${RUNWAY_API_KEY}"
+  luma-ray-flash-2:
+    api_key: "${LUMA_API_KEY}"
     duration: 5
-    auto_convert: true  # Converts image to video automatically
+    resolution: [512, 512]
+    
+  luma-ray-2:
+    api_key: "${LUMA_API_KEY}"
+    duration: 5
+    resolution: [1024, 576]
 
 tasks:
   maze_solving:
@@ -342,7 +336,7 @@ Run comprehensive benchmarks using the inference module:
 vmevalkit batch luma-dream-machine --dataset data/maze_tasks.json
 
 # Compare multiple models on same dataset
-vmevalkit batch luma-dream-machine google-veo-001 runway-gen3 \
+vmevalkit batch luma-dream-machine luma-ray-flash-2 luma-ray-2 \
     --dataset data/benchmark_tasks.json \
     --workers 4
 

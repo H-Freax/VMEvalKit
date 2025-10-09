@@ -4,9 +4,7 @@ Model registry for managing video generation models.
 
 from typing import Dict, Any, Optional, Type
 from ..models.base import BaseVideoModel
-from ..api_clients.runway_client import RunwayModel
 from ..api_clients.luma_client import LumaDreamMachine
-from ..api_clients.veo_client import GoogleVeo
 
 
 class ModelRegistry:
@@ -18,33 +16,21 @@ class ModelRegistry:
     
     # Registered model classes - All support text+image input
     _models: Dict[str, Type[BaseVideoModel]] = {
-        "luma-dream-machine": LumaDreamMachine,
-        "google-veo-001": GoogleVeo,
-        "google-veo-002": GoogleVeo,
-        "runway-gen4-aleph": RunwayModel,  # Supports text+image via workaround
+        "luma-ray-flash-2": LumaDreamMachine,
+        "luma-ray-2": LumaDreamMachine,
     }
     
     # Model compatibility status - Only includes implemented models
     _compatibility = {
-        "luma-dream-machine": {
+        "luma-ray-flash-2": {
             "supports_text_image": True,
             "status": "✅ Compatible",
-            "notes": "Supports text prompts with image references"
+            "notes": "Luma Ray Flash 2 - Fast generation model with image conditioning"
         },
-        "google-veo-001": {
+        "luma-ray-2": {
             "supports_text_image": True,
             "status": "✅ Compatible",
-            "notes": "Google Veo v1 - High-quality text+image→video generation via Vertex AI"
-        },
-        "google-veo-002": {
-            "supports_text_image": True,
-            "status": "✅ Compatible",
-            "notes": "Google Veo v2 (latest) - Improved quality and consistency, text+image→video"
-        },
-        "runway-gen4-aleph": {
-            "supports_text_image": True,
-            "status": "✅ Compatible",
-            "notes": "Video+text input - works by converting image to video first (automatic workaround)"
+            "notes": "Luma Ray 2 - High-quality model with text+image input"
         }
     }
     
@@ -78,17 +64,12 @@ class ModelRegistry:
             print(f"Status: {compat['status']}")
             print(f"Notes: {compat['notes']}")
         
-        # Handle Runway models specially
-        if model_name.startswith("runway-"):
-            # Extract model variant
-            variant = model_name.replace("runway-", "").replace("-", "_")
-            return RunwayModel(model_name=variant, api_key=api_key, **kwargs)
-        
-        # Handle Google Veo models
-        if model_name.startswith("google-veo-"):
-            # Extract version (001 or 002)
-            version = model_name.replace("google-", "")
-            return GoogleVeo(model_version=version, api_key=api_key, **kwargs)
+        # Handle Luma models
+        if model_name.startswith("luma-"):
+            if model_name == "luma-ray-flash-2":
+                return LumaDreamMachine(model="ray-flash-2", api_key=api_key, **kwargs)
+            elif model_name == "luma-ray-2":
+                return LumaDreamMachine(model="ray-2", api_key=api_key, **kwargs)
         
         # Load other registered models
         if model_name in cls._models:
