@@ -1,7 +1,18 @@
 """
-Simple inference runner for video generation.
+VMEvalKit Inference Runner - Multi-Provider Video Generation
 
-Handles running different models with a clean interface.
+Unified interface for 37+ text+image→video models across 9 major providers:
+- Luma Dream Machine (2 models)
+- Google Veo (3 models) 
+- WaveSpeed WAN 2.x (18 models)
+- Runway ML (3 models)
+- OpenAI Sora (2 models)
+- LTX-Video (3 models) - Open Source
+- HunyuanVideo (1 model) - Open Source  
+- VideoCrafter (1 model) - Open Source
+- DynamiCrafter (3 models) - Open Source
+
+Organized by families for easy scaling and management.
 """
 
 import os
@@ -11,7 +22,10 @@ from typing import Dict, Any, Optional, Union
 from datetime import datetime
 import json
 
-from ..models import LumaInference, VeoService, WaveSpeedService, RunwayService
+from ..models import (
+    LumaInference, VeoService, WaveSpeedService, RunwayService, SoraService,
+    LTXVideoWrapper, HunyuanVideoWrapper, VideoCrafterWrapper, DynamiCrafterWrapper
+)
 
 
 class VeoWrapper:
@@ -270,145 +284,430 @@ class RunwayWrapper:
         }
 
 
-# Available models and their configurations
-AVAILABLE_MODELS = {
+class OpenAIWrapper:
+    """
+    Wrapper for SoraService to match the LumaInference interface.
+    """
+    
+    def __init__(
+        self,
+        model: str,
+        output_dir: str = "./outputs",
+        api_key: Optional[str] = None,  # Not used - Sora uses OPENAI_API_KEY env var
+        **kwargs
+    ):
+        """Initialize OpenAI Sora wrapper."""
+        self.model = model
+        self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(exist_ok=True, parents=True)
+        self.kwargs = kwargs
+        
+        # Create SoraService instance
+        self.sora_service = SoraService(model=model)
+    
+    def generate(
+        self,
+        image_path: Union[str, Path],
+        text_prompt: str,
+        duration: float = 8.0,
+        output_filename: Optional[str] = None,
+        size: str = "1280x720",
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Generate video using Sora (synchronous wrapper).
+        
+        Args:
+            image_path: Path to input image (must match size exactly)
+            text_prompt: Text prompt for video generation
+            duration: Video duration in seconds (4, 8, or 12)
+            output_filename: Optional output filename
+            size: Video resolution (must match image dimensions exactly)
+            **kwargs: Additional parameters
+            
+        Returns:
+            Dictionary with generation results
+        """
+        import time
+        start_time = time.time()
+        
+        # Convert duration to int (Sora expects int)
+        duration_int = int(duration)
+        
+        # Generate output path
+        if not output_filename:
+            # Create filename from model and timestamp
+            safe_model = self.model.replace('-', '_')
+            timestamp = int(time.time())
+            output_filename = f"sora_{safe_model}_{timestamp}.mp4"
+        
+        output_path = self.output_dir / output_filename
+        
+        # Run async generation in sync context
+        result = asyncio.run(
+            self.sora_service.generate_video(
+                prompt=text_prompt,
+                image_path=str(image_path),
+                duration=duration_int,
+                size=size,
+                output_path=output_path,
+                auto_pad=True,  # Enable auto-padding by default
+                **kwargs
+            )
+        )
+        
+        duration_taken = time.time() - start_time
+        
+        return {
+            "video_path": result.get("video_path"),
+            "generation_id": result.get("video_id", 'unknown'),
+            "status": "success" if result.get("video_path") else "completed_no_download",
+            "duration_seconds": duration_taken,
+            "model": self.model,
+            "prompt": text_prompt,
+            "image_path": str(image_path),
+            "duration": duration_int,
+            "size": result.get("size")
+        }
+
+
+# ========================================
+# MODEL FAMILY DEFINITIONS
+# ========================================
+
+# Luma Dream Machine Models
+LUMA_MODELS = {
     "luma-ray-2": {
         "class": LumaInference,
         "model": "ray-2",
-        "description": "Luma Ray 2 - Latest model with best quality"
+        "description": "Luma Ray 2 - Latest model with best quality",
+        "family": "Luma Dream Machine"
     },
     "luma-ray-flash-2": {
         "class": LumaInference,
         "model": "ray-flash-2", 
-        "description": "Luma Ray Flash 2 - Faster generation"
-    },
+        "description": "Luma Ray Flash 2 - Faster generation",
+        "family": "Luma Dream Machine"
+    }
+}
+
+# Google Veo Models (Vertex AI)
+VEO_MODELS = {
     "veo-2.0-generate": {
         "class": VeoWrapper,
         "model": "veo-2.0-generate-001",
-        "description": "Google Veo 2.0 - GA model for text+image→video"
+        "description": "Google Veo 2.0 - GA model for text+image→video",
+        "family": "Google Veo"
     },
     "veo-3.0-generate": {
         "class": VeoWrapper,
         "model": "veo-3.0-generate-preview",
-        "description": "Google Veo 3.0 - Preview model with advanced capabilities"
+        "description": "Google Veo 3.0 - Preview model with advanced capabilities",
+        "family": "Google Veo"
     },
     "veo-3.0-fast-generate": {
         "class": VeoWrapper,
         "model": "veo-3.0-fast-generate-preview",
-        "description": "Google Veo 3.0 Fast - Preview model for faster generation"
-    },
-    
-    # WaveSpeedAI WAN 2.2 Models
+        "description": "Google Veo 3.0 Fast - Preview model for faster generation",
+        "family": "Google Veo"
+    }
+}
+
+# WaveSpeedAI WAN Models
+WAVESPEED_WAN_22_MODELS = {
     "wavespeed-wan-2.2-i2v-480p": {
         "class": WaveSpeedWrapper,
         "model": "wan-2.2/i2v-480p",
-        "description": "WaveSpeed WAN 2.2 I2V 480p - Standard quality"
+        "description": "WaveSpeed WAN 2.2 I2V 480p - Standard quality",
+        "family": "WaveSpeed WAN 2.2"
     },
     "wavespeed-wan-2.2-i2v-480p-ultra-fast": {
         "class": WaveSpeedWrapper,
         "model": "wan-2.2/i2v-480p-ultra-fast",
-        "description": "WaveSpeed WAN 2.2 I2V 480p Ultra Fast - Speed optimized"
+        "description": "WaveSpeed WAN 2.2 I2V 480p Ultra Fast - Speed optimized",
+        "family": "WaveSpeed WAN 2.2"
     },
     "wavespeed-wan-2.2-i2v-480p-lora": {
         "class": WaveSpeedWrapper,
         "model": "wan-2.2/i2v-480p-lora",
-        "description": "WaveSpeed WAN 2.2 I2V 480p LoRA - Enhanced with LoRA"
+        "description": "WaveSpeed WAN 2.2 I2V 480p LoRA - Enhanced with LoRA",
+        "family": "WaveSpeed WAN 2.2"
     },
     "wavespeed-wan-2.2-i2v-480p-lora-ultra-fast": {
         "class": WaveSpeedWrapper,
         "model": "wan-2.2/i2v-480p-lora-ultra-fast",
-        "description": "WaveSpeed WAN 2.2 I2V 480p LoRA Ultra Fast - Best speed with LoRA"
+        "description": "WaveSpeed WAN 2.2 I2V 480p LoRA Ultra Fast - Best speed with LoRA",
+        "family": "WaveSpeed WAN 2.2"
     },
     "wavespeed-wan-2.2-i2v-5b-720p": {
         "class": WaveSpeedWrapper,
         "model": "wan-2.2/i2v-5b-720p",
-        "description": "WaveSpeed WAN 2.2 I2V 5B 720p - High resolution 5B model"
+        "description": "WaveSpeed WAN 2.2 I2V 5B 720p - High resolution 5B model",
+        "family": "WaveSpeed WAN 2.2"
     },
     "wavespeed-wan-2.2-i2v-5b-720p-lora": {
         "class": WaveSpeedWrapper,
         "model": "wan-2.2/i2v-5b-720p-lora",
-        "description": "WaveSpeed WAN 2.2 I2V 5B 720p LoRA - High-res with LoRA"
+        "description": "WaveSpeed WAN 2.2 I2V 5B 720p LoRA - High-res with LoRA",
+        "family": "WaveSpeed WAN 2.2"
     },
     "wavespeed-wan-2.2-i2v-720p": {
         "class": WaveSpeedWrapper,
         "model": "wan-2.2/i2v-720p",
-        "description": "WaveSpeed WAN 2.2 I2V 720p - High resolution"
+        "description": "WaveSpeed WAN 2.2 I2V 720p - High resolution",
+        "family": "WaveSpeed WAN 2.2"
     },
     "wavespeed-wan-2.2-i2v-720p-ultra-fast": {
         "class": WaveSpeedWrapper,
         "model": "wan-2.2/i2v-720p-ultra-fast",
-        "description": "WaveSpeed WAN 2.2 I2V 720p Ultra Fast - High-res speed optimized"
+        "description": "WaveSpeed WAN 2.2 I2V 720p Ultra Fast - High-res speed optimized",
+        "family": "WaveSpeed WAN 2.2"
     },
     "wavespeed-wan-2.2-i2v-720p-lora": {
         "class": WaveSpeedWrapper,
         "model": "wan-2.2/i2v-720p-lora",
-        "description": "WaveSpeed WAN 2.2 I2V 720p LoRA - High-res with LoRA"
+        "description": "WaveSpeed WAN 2.2 I2V 720p LoRA - High-res with LoRA",
+        "family": "WaveSpeed WAN 2.2"
     },
     "wavespeed-wan-2.2-i2v-720p-lora-ultra-fast": {
         "class": WaveSpeedWrapper,
         "model": "wan-2.2/i2v-720p-lora-ultra-fast",
-        "description": "WaveSpeed WAN 2.2 I2V 720p LoRA Ultra Fast - Fastest high-res LoRA"
-    },
-    
-    # WaveSpeedAI WAN 2.1 Models
+        "description": "WaveSpeed WAN 2.2 I2V 720p LoRA Ultra Fast - Fastest high-res LoRA",
+        "family": "WaveSpeed WAN 2.2"
+    }
+}
+
+WAVESPEED_WAN_21_MODELS = {
     "wavespeed-wan-2.1-i2v-480p": {
         "class": WaveSpeedWrapper,
         "model": "wan-2.1/i2v-480p",
-        "description": "WaveSpeed WAN 2.1 I2V 480p - Standard quality"
+        "description": "WaveSpeed WAN 2.1 I2V 480p - Standard quality",
+        "family": "WaveSpeed WAN 2.1"
     },
     "wavespeed-wan-2.1-i2v-480p-ultra-fast": {
         "class": WaveSpeedWrapper,
         "model": "wan-2.1/i2v-480p-ultra-fast",
-        "description": "WaveSpeed WAN 2.1 I2V 480p Ultra Fast - Speed optimized"
+        "description": "WaveSpeed WAN 2.1 I2V 480p Ultra Fast - Speed optimized",
+        "family": "WaveSpeed WAN 2.1"
     },
     "wavespeed-wan-2.1-i2v-480p-lora": {
         "class": WaveSpeedWrapper,
         "model": "wan-2.1/i2v-480p-lora",
-        "description": "WaveSpeed WAN 2.1 I2V 480p LoRA - Enhanced with LoRA"
+        "description": "WaveSpeed WAN 2.1 I2V 480p LoRA - Enhanced with LoRA",
+        "family": "WaveSpeed WAN 2.1"
     },
     "wavespeed-wan-2.1-i2v-480p-lora-ultra-fast": {
         "class": WaveSpeedWrapper,
         "model": "wan-2.1/i2v-480p-lora-ultra-fast",
-        "description": "WaveSpeed WAN 2.1 I2V 480p LoRA Ultra Fast - Best speed with LoRA"
+        "description": "WaveSpeed WAN 2.1 I2V 480p LoRA Ultra Fast - Best speed with LoRA",
+        "family": "WaveSpeed WAN 2.1"
     },
     "wavespeed-wan-2.1-i2v-720p": {
         "class": WaveSpeedWrapper,
         "model": "wan-2.1/i2v-720p",
-        "description": "WaveSpeed WAN 2.1 I2V 720p - High resolution"
+        "description": "WaveSpeed WAN 2.1 I2V 720p - High resolution",
+        "family": "WaveSpeed WAN 2.1"
     },
     "wavespeed-wan-2.1-i2v-720p-ultra-fast": {
         "class": WaveSpeedWrapper,
         "model": "wan-2.1/i2v-720p-ultra-fast",
-        "description": "WaveSpeed WAN 2.1 I2V 720p Ultra Fast - High-res speed optimized"
+        "description": "WaveSpeed WAN 2.1 I2V 720p Ultra Fast - High-res speed optimized",
+        "family": "WaveSpeed WAN 2.1"
     },
     "wavespeed-wan-2.1-i2v-720p-lora": {
         "class": WaveSpeedWrapper,
         "model": "wan-2.1/i2v-720p-lora",
-        "description": "WaveSpeed WAN 2.1 I2V 720p LoRA - High-res with LoRA"
+        "description": "WaveSpeed WAN 2.1 I2V 720p LoRA - High-res with LoRA",
+        "family": "WaveSpeed WAN 2.1"
     },
     "wavespeed-wan-2.1-i2v-720p-lora-ultra-fast": {
         "class": WaveSpeedWrapper,
         "model": "wan-2.1/i2v-720p-lora-ultra-fast",
-        "description": "WaveSpeed WAN 2.1 I2V 720p LoRA Ultra Fast - Fastest high-res LoRA"
-    },
-    
-    # Runway ML Models
+        "description": "WaveSpeed WAN 2.1 I2V 720p LoRA Ultra Fast - Fastest high-res LoRA",
+        "family": "WaveSpeed WAN 2.1"
+    }
+}
+
+# Runway ML Models
+RUNWAY_MODELS = {
     "runway-gen4-turbo": {
         "class": RunwayWrapper,
         "model": "gen4_turbo",
-        "description": "Runway Gen-4 Turbo - Fast high-quality generation (5s or 10s)"
+        "description": "Runway Gen-4 Turbo - Fast high-quality generation (5s or 10s)",
+        "family": "Runway ML"
     },
     "runway-gen4-aleph": {
         "class": RunwayWrapper,
         "model": "gen4_aleph",
-        "description": "Runway Gen-4 Aleph - Premium quality (5s)"
+        "description": "Runway Gen-4 Aleph - Premium quality (5s)",
+        "family": "Runway ML"
     },
     "runway-gen3a-turbo": {
         "class": RunwayWrapper,
         "model": "gen3a_turbo",
-        "description": "Runway Gen-3A Turbo - Proven performance (5s or 10s)"
+        "description": "Runway Gen-3A Turbo - Proven performance (5s or 10s)",
+        "family": "Runway ML"
     }
 }
+
+# OpenAI Sora Models
+OPENAI_SORA_MODELS = {
+    "openai-sora-2": {
+        "class": OpenAIWrapper,
+        "model": "sora-2",
+        "description": "OpenAI Sora-2 - High-quality video generation (4s/8s/12s)",
+        "family": "OpenAI Sora"
+    },
+    "openai-sora-2-pro": {
+        "class": OpenAIWrapper,
+        "model": "sora-2-pro",
+        "description": "OpenAI Sora-2-Pro - Enhanced model with more resolution options",
+        "family": "OpenAI Sora"
+    }
+}
+
+# ========================================
+# OPEN-SOURCE MODELS (SUBMODULES)  
+# ========================================
+
+# LTX-Video Models (Lightricks)
+LTX_VIDEO_MODELS = {
+    "ltx-video-13b-distilled": {
+        "class": LTXVideoWrapper,
+        "model": "ltxv-13b-0.9.8-distilled",
+        "description": "LTX-Video 13B Distilled - Real-time video generation, high quality",
+        "family": "LTX-Video"
+    },
+    "ltx-video-13b-dev": {
+        "class": LTXVideoWrapper,
+        "model": "ltxv-13b-0.9.8-dev",
+        "description": "LTX-Video 13B Dev - Development version with latest features",
+        "family": "LTX-Video"
+    },
+    "ltx-video-2b-distilled": {
+        "class": LTXVideoWrapper,
+        "model": "ltxv-2b-0.9.8-distilled",
+        "description": "LTX-Video 2B Distilled - Smaller, faster model",
+        "family": "LTX-Video"
+    }
+}
+
+# HunyuanVideo-I2V Models (Tencent)
+HUNYUAN_VIDEO_MODELS = {
+    "hunyuan-video-i2v": {
+        "class": HunyuanVideoWrapper,
+        "model": "hunyuan-video-i2v",
+        "description": "HunyuanVideo-I2V - High-quality image-to-video up to 720p",
+        "family": "HunyuanVideo"
+    }
+}
+
+# VideoCrafter Models (AILab-CVC)
+VIDEOCRAFTER_MODELS = {
+    "videocrafter2-512": {
+        "class": VideoCrafterWrapper,
+        "model": "videocrafter2",
+        "description": "VideoCrafter2 - High-quality text-guided video generation",
+        "family": "VideoCrafter"
+    }
+}
+
+# DynamiCrafter Models (Doubiiu)
+DYNAMICRAFTER_MODELS = {
+    "dynamicrafter-512": {
+        "class": DynamiCrafterWrapper,
+        "model": "dynamicrafter-512",
+        "description": "DynamiCrafter 512p - Image animation with video diffusion",
+        "family": "DynamiCrafter"
+    },
+    "dynamicrafter-256": {
+        "class": DynamiCrafterWrapper,
+        "model": "dynamicrafter-256",
+        "description": "DynamiCrafter 256p - Faster image animation",
+        "family": "DynamiCrafter"
+    },
+    "dynamicrafter-1024": {
+        "class": DynamiCrafterWrapper,
+        "model": "dynamicrafter-1024",
+        "description": "DynamiCrafter 1024p - High-resolution image animation",
+        "family": "DynamiCrafter"
+    }
+}
+
+# ========================================
+# COMBINED MODEL REGISTRY
+# ========================================
+
+# Combine all model families into unified registry
+AVAILABLE_MODELS = {
+    **LUMA_MODELS,
+    **VEO_MODELS,
+    **WAVESPEED_WAN_22_MODELS,
+    **WAVESPEED_WAN_21_MODELS,
+    **RUNWAY_MODELS,
+    **OPENAI_SORA_MODELS,
+    **LTX_VIDEO_MODELS,
+    **HUNYUAN_VIDEO_MODELS,
+    **VIDEOCRAFTER_MODELS,
+    **DYNAMICRAFTER_MODELS
+}
+
+# Model families metadata for easier management
+MODEL_FAMILIES = {
+    "Luma Dream Machine": LUMA_MODELS,
+    "Google Veo": VEO_MODELS,
+    "WaveSpeed WAN 2.2": WAVESPEED_WAN_22_MODELS,
+    "WaveSpeed WAN 2.1": WAVESPEED_WAN_21_MODELS,
+    "Runway ML": RUNWAY_MODELS,
+    "OpenAI Sora": OPENAI_SORA_MODELS,
+    "LTX-Video": LTX_VIDEO_MODELS,
+    "HunyuanVideo": HUNYUAN_VIDEO_MODELS,
+    "VideoCrafter": VIDEOCRAFTER_MODELS,
+    "DynamiCrafter": DYNAMICRAFTER_MODELS
+}
+
+
+# ========================================
+# UTILITY FUNCTIONS
+# ========================================
+
+def get_models_by_family(family_name: str) -> Dict[str, Dict[str, Any]]:
+    """Get all models from a specific family."""
+    if family_name not in MODEL_FAMILIES:
+        raise ValueError(f"Unknown family: {family_name}. Available: {list(MODEL_FAMILIES.keys())}")
+    return MODEL_FAMILIES[family_name]
+
+
+def get_model_family(model_name: str) -> str:
+    """Get the family name for a specific model."""
+    if model_name not in AVAILABLE_MODELS:
+        raise ValueError(f"Unknown model: {model_name}")
+    return AVAILABLE_MODELS[model_name]["family"]
+
+
+def list_all_families() -> Dict[str, int]:
+    """List all model families and their counts."""
+    return {
+        family_name: len(family_models)
+        for family_name, family_models in MODEL_FAMILIES.items()
+    }
+
+
+def add_model_family(family_name: str, models: Dict[str, Dict[str, Any]]) -> None:
+    """
+    Add a new model family to the registry.
+    
+    Args:
+        family_name: Name of the model family
+        models: Dictionary of model configurations
+    """
+    # Add family info to each model
+    for model_config in models.values():
+        model_config["family"] = family_name
+    
+    # Add to registries
+    MODEL_FAMILIES[family_name] = models
+    AVAILABLE_MODELS.update(models)
 
 
 def run_inference(
@@ -536,6 +835,23 @@ class InferenceRunner:
         return {
             name: config["description"]
             for name, config in AVAILABLE_MODELS.items()
+        }
+    
+    def list_models_by_family(self) -> Dict[str, Dict[str, str]]:
+        """List models organized by family."""
+        return {
+            family_name: {
+                name: config["description"]
+                for name, config in family_models.items()
+            }
+            for family_name, family_models in MODEL_FAMILIES.items()
+        }
+    
+    def get_model_families(self) -> Dict[str, int]:
+        """Get model family statistics."""
+        return {
+            family_name: len(family_models)
+            for family_name, family_models in MODEL_FAMILIES.items()
         }
     
     def _load_log(self) -> list:

@@ -38,12 +38,22 @@ print(f"Video: {result['video_path']}")
 
 ## Supported Models
 
-| Model | Name | Notes |
-|-------|------|-------|
-| **Luma Ray 2** | `luma-ray-2` | High quality |
-| **Luma Ray Flash 2** | `luma-ray-flash-2` | Faster generation |
+VMEvalKit supports **36+ models** across **9 providers**:
 
-Both require `LUMA_API_KEY` in environment.
+**Commercial APIs (28 models):**
+- **Luma Dream Machine**: 2 models (`luma-ray-2`, `luma-ray-flash-2`)
+- **Google Veo**: 3 models (`veo-2.0-generate`, `veo-3.0-generate`, etc.)
+- **WaveSpeed WAN**: 18 models (2.1 & 2.2 variants)
+- **Runway ML**: 3 models
+- **OpenAI Sora**: 2 models
+
+**Open-Source Models (8 models):**
+- **LTX-Video**: 3 models (13B distilled, 13B dev, 2B distilled)
+- **HunyuanVideo**: 1 model (high-quality 720p)
+- **VideoCrafter**: 1 model (text-guided generation)
+- **DynamiCrafter**: 3 models (256p, 512p, 1024p)
+
+All models support **image + text → video** for reasoning evaluation.
 
 ## Tasks
 
@@ -91,6 +101,30 @@ git submodule update --init --recursive
 
 - **KnowWhat**: Research on knowing-how vs knowing-that
 - **maze-dataset**: Maze datasets for ML evaluation
+- **HunyuanVideo-I2V**: High-quality image-to-video generation (720p)
+- **LTX-Video**: Real-time video generation models
+- **VideoCrafter**: Text-guided video generation
+- **DynamiCrafter**: Image animation with video diffusion
+
+## Contributing
+
+### Adding New Models
+
+VMEvalKit supports 36+ models across 9 providers and is designed to easily accommodate new models.
+
+**Requirements:**
+- Model must support **both image + text input** for reasoning evaluation
+- Follow the unified inference interface
+
+**Quick Steps:**
+1. Create wrapper class in `vmevalkit/models/{provider}_inference.py`
+2. Register in `vmevalkit/runner/inference.py` 
+3. Update imports in `vmevalkit/models/__init__.py`
+
+**Documentation:**
+- 📚 **Complete Guide**: [docs/ADDING_MODELS.md](docs/ADDING_MODELS.md)
+
+Both API-based and open-source (submodule) integration patterns are supported.
 
 ## License
 
