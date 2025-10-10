@@ -12,28 +12,17 @@ and action demonstration capabilities in video models.
 """
 
 from .chess_reasoning import (
-    ChessTaskPair,
-    ChessDataset, 
+    SelfContainedMateGenerator,
     create_chess_dataset,
-    generate_chess_board_image,
-    ChessMateValidator
-)
-
-from .chess_mate_in_1 import (
-    MateIn1Puzzle,
-    MateIn1Generator,
-    MateIn1Validator
+    create_chess_task_pair,
+    generate_chess_board_png
 )
 
 __all__ = [
-    'ChessTaskPair',
-    'ChessDataset',
+    'SelfContainedMateGenerator',
     'create_chess_dataset', 
-    'generate_chess_board_image',
-    'ChessMateValidator',
-    'MateIn1Puzzle',
-    'MateIn1Generator', 
-    'MateIn1Validator'
+    'create_chess_task_pair',
+    'generate_chess_board_png'
 ]
 
 __version__ = "1.0.0"
