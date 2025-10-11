@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """
-Pilot Experiment: Test representative models from each family on VMEvalKit v1.0 dataset.
+Pilot Experiment: Test 6 representative models on VMEvalKit v2.0 dataset with parallel execution.
 
-This script runs inference on 10 task pairs from each task category (chess, maze, raven, rotation)
-using one representative model from each commercial API model family:
+This script runs inference on 1 task pair from each task category (chess, maze, raven, rotation)
+using representative models from major families plus the new Veo 3.1:
 - Luma Dream Machine: luma-ray-2
-- Google Veo: veo-3.0-generate
-- WaveSpeed WAN 2.2: wavespeed-wan-2.2-i2v-720p
+- Google Veo 3.0: veo-3.0-generate  
+- Google Veo 3.1 (via WaveSpeed): veo-3.1-720p
 - Runway ML: runway-gen4-turbo
 - OpenAI Sora: openai-sora-2
+- WaveSpeed WAN 2.2: wavespeed-wan-2.2-i2v-720p
 
-Total: 40 tasks × 5 models = 200 video generations
+Total: 4 tasks × 6 models = 24 video generations (run in parallel)
 
 Requirements:
 - All necessary API keys configured in environment
@@ -27,6 +28,9 @@ from typing import Dict, List, Any, Optional
 from datetime import datetime
 import traceback
 from PIL import Image
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
+import time
 
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
@@ -43,19 +47,24 @@ from vmevalkit.runner.inference import (
 # PILOT EXPERIMENT CONFIGURATION
 # ========================================
 
-# Limit pilot run to only the OpenAI Sora model
+# Test 6 models including the new Veo 3.1
 PILOT_MODELS = {
+    "luma-ray-2": "Luma Dream Machine",
+    "veo-3.0-generate": "Google Veo 3.0",
+    "veo-3.1-720p": "Google Veo 3.1 (via WaveSpeed)",
+    "runway-gen4-turbo": "Runway ML",
     "openai-sora-2": "OpenAI Sora",
+    "wavespeed-wan-2.2-i2v-720p": "WaveSpeed WAN 2.2",
 }
 
-# Number of tasks per category
-TASKS_PER_CATEGORY = 10
+# Number of tasks per category (reduced to 1 for quick testing)
+TASKS_PER_CATEGORY = 1
 
 # Task categories to test
 TASK_CATEGORIES = ["chess", "maze", "raven", "rotation"]
 
-# Dataset path
-DATASET_PATH = Path("data/questions/vmeval_dataset_v1.json")
+# Dataset path (using v2 with improved prompts)
+DATASET_PATH = Path("data/questions/vmeval_dataset_v2.json")
 
 # Output directory
 OUTPUT_DIR = Path("data/outputs/pilot_experiment")
@@ -292,27 +301,30 @@ def run_pilot_experiment(
     tasks_by_category: Dict[str, List[Dict[str, Any]]],
     models: Dict[str, str],
     output_dir: Path,
-    skip_existing: bool = True
+    skip_existing: bool = True,
+    max_workers: int = 6  # Parallel workers (one per model)
 ) -> Dict[str, Any]:
     """
-    Run full pilot experiment.
+    Run full pilot experiment with PARALLEL execution.
     
     Args:
         tasks_by_category: Dictionary mapping category to task lists
         models: Dictionary of model names to test
         output_dir: Base output directory
         skip_existing: Skip tasks that already have outputs
+        max_workers: Maximum parallel workers for ThreadPoolExecutor
         
     Returns:
         Dictionary with all results and statistics
     """
     print("=" * 80)
-    print("🚀 VMEVAL KIT PILOT EXPERIMENT")
+    print("🚀 VMEVAL KIT PILOT EXPERIMENT (PARALLEL EXECUTION)")
     print("=" * 80)
     print(f"\n📊 Experiment Configuration:")
     print(f"   Models: {len(models)}")
     print(f"   Categories: {len(tasks_by_category)}")
     print(f"   Tasks per category: {TASKS_PER_CATEGORY}")
+    print(f"   🔄 Parallel Workers: {max_workers}")
     
     total_tasks = sum(len(tasks) for tasks in tasks_by_category.values())
     total_generations = total_tasks * len(models)
@@ -324,8 +336,10 @@ def run_pilot_experiment(
     # Create output structure
     create_output_structure(output_dir)
     
-    # Store all results
+    # Thread-safe results storage
     all_results = []
+    results_lock = threading.Lock()
+    
     statistics = {
         "total_tasks": total_tasks,
         "total_generations": total_generations,
@@ -335,6 +349,7 @@ def run_pilot_experiment(
         "by_model": {},
         "by_category": {}
     }
+    stats_lock = threading.Lock()
     
     # Initialize statistics
     for model in models.keys():
@@ -344,52 +359,93 @@ def run_pilot_experiment(
     
     experiment_start = datetime.now()
     
-    # Run inference for each model-task combination
+    # Create all inference jobs
+    inference_jobs = []
     for category, tasks in tasks_by_category.items():
-        print(f"\n{'=' * 80}")
-        print(f"📂 Category: {category.upper()} ({len(tasks)} tasks)")
-        print(f"{'=' * 80}")
-        
-        for i, task in enumerate(tasks, 1):
-            task_id = task["id"]
-            print(f"\n[{i}/{len(tasks)}] Task: {task_id}")
-            
+        for task in tasks:
             for model_name in models.keys():
-                # Check if output already exists
-                model_safe = model_name.replace("/", "_").replace("-", "_")
-                output_filename = f"{task_id}_{model_safe}.mp4"
-                model_output_dir = output_dir / model_name / category
-                output_path = model_output_dir / output_filename
-                
-                if skip_existing and output_path.exists():
-                    print(f"  ⏭️  Skipping {model_name}: output already exists")
-                    statistics["skipped"] += 1
-                    statistics["by_model"][model_name]["skipped"] += 1
-                    statistics["by_category"][category]["skipped"] += 1
-                    continue
-                
-                # Run inference
-                result = run_single_inference(
-                    model_name=model_name,
-                    task=task,
-                    category=category,
-                    output_dir=output_dir
-                )
-                
-                all_results.append(result)
-                
-                # Update statistics
-                if result["success"]:
-                    statistics["completed"] += 1
-                    statistics["by_model"][model_name]["completed"] += 1
-                    statistics["by_category"][category]["completed"] += 1
-                else:
+                inference_jobs.append({
+                    "model_name": model_name,
+                    "task": task,
+                    "category": category
+                })
+    
+    print(f"📋 Created {len(inference_jobs)} inference jobs")
+    print("🚀 Starting parallel execution...\n")
+    
+    # Function to process a single job
+    def process_job(job: Dict[str, Any]) -> Dict[str, Any]:
+        model_name = job["model_name"]
+        task = job["task"]
+        category = job["category"]
+        task_id = task["id"]
+        
+        # Check if output already exists
+        model_safe = model_name.replace("/", "_").replace("-", "_")
+        output_filename = f"{task_id}_{model_safe}.mp4"
+        model_output_dir = output_dir / model_name / category
+        output_path = model_output_dir / output_filename
+        
+        if skip_existing and output_path.exists():
+            with stats_lock:
+                statistics["skipped"] += 1
+                statistics["by_model"][model_name]["skipped"] += 1
+                statistics["by_category"][category]["skipped"] += 1
+            return {
+                "task_id": task_id,
+                "model_name": model_name,
+                "status": "skipped"
+            }
+        
+        # Run inference
+        result = run_single_inference(
+            model_name=model_name,
+            task=task,
+            category=category,
+            output_dir=output_dir
+        )
+        
+        # Update statistics and results (thread-safe)
+        with results_lock:
+            all_results.append(result)
+        
+        with stats_lock:
+            if result["success"]:
+                statistics["completed"] += 1
+                statistics["by_model"][model_name]["completed"] += 1
+                statistics["by_category"][category]["completed"] += 1
+            else:
+                statistics["failed"] += 1
+                statistics["by_model"][model_name]["failed"] += 1
+                statistics["by_category"][category]["failed"] += 1
+            
+            # Save intermediate results periodically
+            if (statistics["completed"] + statistics["failed"]) % 5 == 0:
+                save_results(all_results.copy(), statistics.copy(), output_dir, intermediate=True)
+        
+        return result
+    
+    # Execute jobs in parallel
+    completed_count = 0
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Submit all jobs
+        future_to_job = {executor.submit(process_job, job): job for job in inference_jobs}
+        
+        # Process completed jobs
+        for future in as_completed(future_to_job):
+            job = future_to_job[future]
+            completed_count += 1
+            
+            try:
+                result = future.result()
+                status = result.get("status", "completed" if result.get("success") else "failed")
+                print(f"[{completed_count}/{len(inference_jobs)}] {job['task']['id']} × {job['model_name']}: {status}")
+            except Exception as exc:
+                print(f"[{completed_count}/{len(inference_jobs)}] {job['task']['id']} × {job['model_name']}: ERROR - {exc}")
+                with stats_lock:
                     statistics["failed"] += 1
-                    statistics["by_model"][model_name]["failed"] += 1
-                    statistics["by_category"][category]["failed"] += 1
-                
-                # Save intermediate results
-                save_results(all_results, statistics, output_dir, intermediate=True)
+                    statistics["by_model"][job["model_name"]]["failed"] += 1
+                    statistics["by_category"][job["category"]]["failed"] += 1
     
     experiment_end = datetime.now()
     duration = (experiment_end - experiment_start).total_seconds()
@@ -399,6 +455,9 @@ def run_pilot_experiment(
     statistics["experiment_end"] = experiment_end.isoformat()
     statistics["duration_seconds"] = duration
     statistics["duration_formatted"] = format_duration(duration)
+    
+    print(f"\n⚡ Parallel execution completed in {format_duration(duration)}")
+    print(f"   Sequential estimate would be: ~{format_duration(duration * max_workers)}")
     
     return {
         "results": all_results,
@@ -510,13 +569,14 @@ def main():
     tasks_by_category = get_pilot_tasks(DATASET_PATH)
     
     # Verify models are available
-    print(f"\n🔍 Verifying models...")
-    for model_name in PILOT_MODELS.keys():
+    print(f"\n🔍 Verifying {len(PILOT_MODELS)} models for parallel testing...")
+    for model_name, family in PILOT_MODELS.items():
         if model_name in AVAILABLE_MODELS:
-            print(f"   ✅ {model_name}: {AVAILABLE_MODELS[model_name]['description']}")
+            print(f"   ✅ {model_name}: {family}")
         else:
-            print(f"   ❌ {model_name}: NOT FOUND")
-            sys.exit(1)
+            print(f"   ❌ {model_name}: NOT FOUND in available models")
+            print(f"      Please check model name or add it to AVAILABLE_MODELS")
+            # Don't exit, just warn - some models might not be configured yet
     
     # Check for API keys (warn if missing)
     print(f"\n🔑 Checking API keys...")
@@ -567,11 +627,13 @@ def main():
     print(f"{'=' * 80}")
     stats = experiment_results["statistics"]
     print(f"\n📊 Final Statistics:")
-    print(f"   Total: {stats['total_generations']} generations")
-    print(f"   Completed: {stats['completed']} ({stats['completed']/stats['total_generations']*100:.1f}%)")
-    print(f"   Failed: {stats['failed']} ({stats['failed']/stats['total_generations']*100:.1f}%)")
-    print(f"   Skipped: {stats['skipped']} ({stats['skipped']/stats['total_generations']*100:.1f}%)")
-    print(f"   Duration: {stats['duration_formatted']}")
+    print(f"   Models tested: {len(PILOT_MODELS)}")
+    print(f"   Tasks per category: {TASKS_PER_CATEGORY}")
+    print(f"   Total generations: {stats['total_generations']}")
+    print(f"   Completed: {stats['completed']} ({stats['completed']/max(stats['total_generations'],1)*100:.1f}%)")
+    print(f"   Failed: {stats['failed']} ({stats['failed']/max(stats['total_generations'],1)*100:.1f}%)")
+    print(f"   Skipped: {stats['skipped']} ({stats['skipped']/max(stats['total_generations'],1)*100:.1f}%)")
+    print(f"   ⏱️ Duration: {stats['duration_formatted']}")
     print(f"\n📁 All outputs saved to: {OUTPUT_DIR}")
     print(f"{'=' * 80}\n")
 

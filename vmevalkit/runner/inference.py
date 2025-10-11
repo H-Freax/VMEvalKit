@@ -644,12 +644,14 @@ OPENAI_SORA_MODELS = {
 GOOGLE_VEO31_MODELS = {
     "veo-3.1": {
         "class": Veo31Wrapper,
+        "model": "veo-3.1",  # Added model key
         "args": {},
         "description": "Google Veo 3.1 - Native 1080p with audio generation (via WaveSpeed)",
         "family": "Google Veo 3.1"
     },
     "veo-3.1-720p": {
         "class": Veo31Wrapper,
+        "model": "veo-3.1-720p",  # Added model key
         "args": {"resolution": "720p"},
         "description": "Google Veo 3.1 - 720p with audio generation (via WaveSpeed)",
         "family": "Google Veo 3.1"

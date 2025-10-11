@@ -166,9 +166,17 @@ class RunwayService:
                     duration=duration
                 ).wait_for_task_output()
                 
+                # Handle case where task.output is a list instead of string
+                video_url = None
+                if hasattr(task, 'output') and task.output:
+                    if isinstance(task.output, list):
+                        video_url = task.output[0] if task.output else None
+                    else:
+                        video_url = task.output
+                
                 return {
                     "task_id": task.id if hasattr(task, 'id') else 'unknown',
-                    "video_url": task.output if hasattr(task, 'output') else None,
+                    "video_url": video_url,
                     "status": "success"
                 }
                 
