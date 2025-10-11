@@ -26,9 +26,9 @@ from typing import Dict, List, Any
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-def create_vmeval_dataset_v1(pairs_per_domain: int = 50, random_seed: int = 42) -> Dict[str, Any]:
+def create_vmeval_dataset_v2(pairs_per_domain: int = 50, random_seed: int = 42) -> Dict[str, Any]:
     """
-    Create VMEvalKit Dataset Version 1 with equal task pairs per domain.
+    Create VMEvalKit Dataset Version 2 with improved, clearer prompts.
     
     Args:
         pairs_per_domain: Number of task pairs to generate per domain (default: 50)
@@ -144,9 +144,9 @@ def create_vmeval_dataset_v1(pairs_per_domain: int = 50, random_seed: int = 42) 
     
     # Create master dataset
     dataset = {
-        "name": "vmeval_dataset_v1",
-        "description": f"VMEvalKit comprehensive video reasoning evaluation dataset v1.0 ({len(all_pairs)} task pairs)",
-        "version": "1.0.0",
+        "name": "vmeval_dataset_v2",
+        "description": f"VMEvalKit video reasoning evaluation dataset v2.0 with improved prompts ({len(all_pairs)} task pairs)",
+        "version": "2.0.0",
         "total_pairs": len(all_pairs),
         "generation_info": {
             "random_seed": random_seed,
@@ -185,7 +185,7 @@ def save_master_dataset(dataset: Dict[str, Any], output_path: str = None) -> str
     if output_path is None:
         data_dir = Path(__file__).parent.parent.parent / "data" / "questions"
         data_dir.mkdir(parents=True, exist_ok=True)
-        output_path = data_dir / "vmeval_dataset_v1.json"
+        output_path = data_dir / "vmeval_dataset_v2.json"
     
     with open(output_path, 'w') as f:
         json.dump(dataset, f, indent=2, default=str)
@@ -196,7 +196,7 @@ def print_dataset_summary(dataset: Dict[str, Any]):
     """Print comprehensive dataset summary."""
     
     print("=" * 70)
-    print("📊 VMEVAL DATASET V1.0 - GENERATION COMPLETE")
+    print("📊 VMEVAL DATASET V2.0 - GENERATION COMPLETE (WITH IMPROVED PROMPTS)")
     print("=" * 70)
     
     gen_info = dataset['generation_info']
@@ -240,10 +240,10 @@ def print_dataset_summary(dataset: Dict[str, Any]):
     print()
 
 def main():
-    """Generate VMEvalKit Dataset Version 1."""
+    """Generate VMEvalKit Dataset Version 2 with improved prompts."""
     
     # Generate dataset with 50 task pairs per domain
-    dataset = create_vmeval_dataset_v1(pairs_per_domain=50, random_seed=42)
+    dataset = create_vmeval_dataset_v2(pairs_per_domain=50, random_seed=42)
     
     # Save to file
     output_path = save_master_dataset(dataset)
@@ -254,7 +254,7 @@ def main():
     print(f"💾 Dataset saved: {output_path}")
     print(f"🔗 Images location: data/questions/generated_*/")
     print()
-    print("🎉 VMEvalKit Dataset v1.0 ready for video reasoning evaluation!")
+    print("🎉 VMEvalKit Dataset v2.0 with improved prompts ready for video reasoning evaluation!")
     print("🚀 Use `vmevalkit/runner/inference.py` to evaluate models on this dataset")
     print("=" * 70)
 
