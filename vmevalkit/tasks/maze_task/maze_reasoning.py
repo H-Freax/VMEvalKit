@@ -411,15 +411,15 @@ def create_knowwhat_dataset(num_samples: int = 20) -> MazeDataset:
     generator = KnowWhatTaskGenerator()
     pairs = []
     
-    print(f"🧩 Loading {num_samples} KnowWhat algorithmic maze tasks from pre-generated files...")
+    print(f"🧩 Loading {num_samples} Simplified KnowWhat maze tasks (5x5 grids only) from pre-generated files...")
     
     # Path to KnowWhat experiment mazes
     knowwhat_data_dir = Path(__file__).parent.parent.parent.parent / "submodules" / "KnowWhat" / "data" / "experiment_mazes"
     
-    # Collect all available maze files
+    # Collect all available maze files (SIMPLIFIED: only 5x5 grids)
     available_mazes = []
     for size_dir in knowwhat_data_dir.iterdir():
-        if size_dir.is_dir() and size_dir.name in ["5x5", "7x7"]:
+        if size_dir.is_dir() and size_dir.name in ["5x5"]:
             size = tuple(map(int, size_dir.name.split('x')))
             for shape_dir in size_dir.iterdir():
                 if shape_dir.is_dir() and shape_dir.name in SHAPES:
@@ -449,9 +449,9 @@ def create_knowwhat_dataset(num_samples: int = 20) -> MazeDataset:
     
     dataset = MazeDataset(
         name="knowwhat_tasks",
-        description=f"KnowWhat algorithmic maze tasks with star/circle markers ({len(pairs)} pairs)",
+        description=f"Simplified KnowWhat maze tasks (5x5 grids only) with star/circle markers ({len(pairs)} pairs)",
         pairs=pairs,
-        metadata={"task_category": "KnowWhat", "marker_style": "star_circle", "source": "pregenerated_experiment_mazes"}
+        metadata={"task_category": "KnowWhat", "marker_style": "star_circle", "source": "pregenerated_experiment_mazes", "grid_size": "5x5_only"}
     )
     
     dataset.save(generator.maze_tasks_dir / "knowwhat_tasks.json")
@@ -465,13 +465,13 @@ def create_irregular_dataset(num_samples: int = 20) -> MazeDataset:
     pairs = []
     
     total_possible = generator.get_total_possible_mazes()
-    print(f"🎯 Generating {num_samples} Irregular maze tasks...")
+    print(f"🎯 Generating {num_samples} Simplified Irregular maze tasks (3x3 grids only)...")
     print(f"   (Estimated total possible: {total_possible:,} mazes)")
     
     for i in range(num_samples):
         try:
-            # Use random grid sizes
-            grid_n = random.choice([3, 4, 5, 6, 7, 8])
+            # Use simplified grid sizes (SIMPLIFIED: only 3x3 grids)
+            grid_n = 3
             
             pair_id = f"irregular_{i:04d}"
             pair = generator.generate_irregular_pair(grid_n, pair_id)
@@ -483,13 +483,14 @@ def create_irregular_dataset(num_samples: int = 20) -> MazeDataset:
     
     dataset = MazeDataset(
         name="irregular_tasks", 
-        description=f"Irregular maze tasks with professional green dot/flag rendering ({len(pairs)} pairs)",
+        description=f"Simplified irregular maze tasks (3x3 grids only) with green dot/flag rendering ({len(pairs)} pairs)",
         pairs=pairs,
         metadata={
             "task_category": "Irregular", 
             "total_possible": total_possible,
             "marker_style": "green_dot_flag",
-            "generation_method": "kruskal_algorithm"
+            "generation_method": "kruskal_algorithm",
+            "grid_size": "3x3_only"
         }
     )
     

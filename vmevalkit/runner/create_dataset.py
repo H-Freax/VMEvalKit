@@ -3,12 +3,14 @@
 VMEvalKit Dataset Creation Script
 
 Generates the first version of our comprehensive video reasoning evaluation dataset
-with 100 task pairs randomly distributed across all four reasoning domains:
+with 50 task pairs per domain, evenly distributed across all four reasoning domains:
 
 - Chess: Strategic thinking and tactical pattern recognition
 - Maze: Spatial reasoning and navigation planning  
 - RAVEN: Abstract reasoning and pattern completion
 - Rotation: 3D mental rotation and spatial visualization
+
+Total: 200 task pairs (50 per domain)
 
 Author: VMEvalKit Team
 """
@@ -24,12 +26,12 @@ from typing import Dict, List, Any
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-def create_vmeval_dataset_v1(pairs_per_domain: int = 100, random_seed: int = 42) -> Dict[str, Any]:
+def create_vmeval_dataset_v1(pairs_per_domain: int = 50, random_seed: int = 42) -> Dict[str, Any]:
     """
     Create VMEvalKit Dataset Version 1 with equal task pairs per domain.
     
     Args:
-        pairs_per_domain: Number of task pairs to generate per domain (default: 100)
+        pairs_per_domain: Number of task pairs to generate per domain (default: 50)
         random_seed: Random seed for reproducible generation (default: 42)
         
     Returns:
@@ -40,7 +42,6 @@ def create_vmeval_dataset_v1(pairs_per_domain: int = 100, random_seed: int = 42)
     
     print("=" * 70)
     print("🚀 VMEvalKit Dataset Creation v1.0")
-    print(f"📊 Generating {pairs_per_domain} task pairs per reasoning domain")
     print(f"🎯 Total target: {total_pairs} task pairs across 4 domains")
     print("=" * 70)
     
@@ -56,6 +57,7 @@ def create_vmeval_dataset_v1(pairs_per_domain: int = 100, random_seed: int = 42)
     }
     
     print(f"📈 Task Distribution:")
+    print(f"   📌 Generating {pairs_per_domain} task pairs per reasoning domain")
     for domain, count in allocation.items():
         print(f"   {domain.title():10}: {count:3d} task pairs")
     print()
@@ -120,6 +122,8 @@ def create_vmeval_dataset_v1(pairs_per_domain: int = 100, random_seed: int = 42)
         
     except Exception as e:
         print(f"   ❌ RAVEN generation failed: {e}\n")
+        import traceback
+        traceback.print_exc()
         raven_pairs = []
     
     try:
@@ -152,14 +156,22 @@ def create_vmeval_dataset_v1(pairs_per_domain: int = 100, random_seed: int = 42)
             "allocation": allocation,
             "domains": {
                 # Use explicit domain tagging for robust counts
-                "chess": {"count": len([p for p in all_pairs if p.get('domain') == 'chess']), 
-                         "description": "Strategic thinking and tactical pattern recognition"},
-                "maze": {"count": len([p for p in all_pairs if p.get('domain') == 'maze']), 
-                        "description": "Spatial reasoning and navigation planning"},
-                "raven": {"count": len([p for p in all_pairs if p.get('domain') == 'raven']), 
-                         "description": "Abstract reasoning and pattern completion"},
-                "rotation": {"count": len([p for p in all_pairs if p.get('domain') == 'rotation']), 
-                           "description": "3D mental rotation and spatial visualization"}
+                "chess": {
+                    "count": len([p for p in all_pairs if p.get('domain') == 'chess']), 
+                    "description": "Strategic thinking and tactical pattern recognition"
+                },
+                "maze": {
+                    "count": len([p for p in all_pairs if p.get('domain') == 'maze']), 
+                    "description": "Spatial reasoning and navigation planning"
+                },
+                "raven": {
+                    "count": len([p for p in all_pairs if p.get('domain') == 'raven']), 
+                    "description": "Abstract reasoning and pattern completion"
+                },
+                "rotation": {
+                    "count": len([p for p in all_pairs if p.get('domain') == 'rotation']), 
+                    "description": "3D mental rotation and spatial visualization"
+                }
             }
         },
         "pairs": all_pairs
@@ -171,9 +183,9 @@ def save_master_dataset(dataset: Dict[str, Any], output_path: str = None) -> str
     """Save the master dataset to JSON file."""
     
     if output_path is None:
-        questions_dir = Path(__file__).parent.parent.parent / "data" / "questions"
-        questions_dir.mkdir(parents=True, exist_ok=True)
-        output_path = questions_dir / "vmeval_dataset_v1.json"
+        data_dir = Path(__file__).parent.parent.parent / "data" / "questions"
+        data_dir.mkdir(parents=True, exist_ok=True)
+        output_path = data_dir / "vmeval_dataset_v1.json"
     
     with open(output_path, 'w') as f:
         json.dump(dataset, f, indent=2, default=str)
@@ -198,7 +210,7 @@ def print_dataset_summary(dataset: Dict[str, Any]):
     
     print(f"🧠 Reasoning Domains:")
     for domain, info in domains.items():
-        percentage = info['count'] / dataset['total_pairs'] * 100
+        percentage = info['count'] / dataset['total_pairs'] * 100 if dataset['total_pairs'] > 0 else 0
         print(f"   {domain.title():10}: {info['count']:2d} pairs ({percentage:4.1f}%) - {info['description']}")
     print()
     
@@ -213,21 +225,25 @@ def print_dataset_summary(dataset: Dict[str, Any]):
     
     print(f"📈 Difficulty Distribution:")
     for diff, count in sorted(difficulties.items()):
-        percentage = count / dataset['total_pairs'] * 100
-        print(f"   {diff.title():10}: {count:2d} pairs ({percentage:4.1f}%)")
+        percentage = count / dataset['total_pairs'] * 100 if dataset['total_pairs'] > 0 else 0
+        print(f"   {diff.title():10}: {count:3d} pairs ({percentage:4.1f}%)")
     print()
     
-    print(f"🏷️  Task Categories:")
-    for cat, count in sorted(categories.items()):
-        percentage = count / dataset['total_pairs'] * 100
-        print(f"   {cat:15}: {count:2d} pairs ({percentage:4.1f}%)")
+    print(f"🏷️  Task Categories ({len(categories)} unique):")
+    # Show top 10 categories
+    sorted_categories = sorted(categories.items(), key=lambda x: x[1], reverse=True)[:10]
+    for cat, count in sorted_categories:
+        percentage = count / dataset['total_pairs'] * 100 if dataset['total_pairs'] > 0 else 0
+        print(f"   {cat:20}: {count:3d} pairs ({percentage:4.1f}%)")
+    if len(categories) > 10:
+        print(f"   ... and {len(categories) - 10} more categories")
     print()
 
 def main():
     """Generate VMEvalKit Dataset Version 1."""
     
-    # Generate dataset with 150 task pairs per domain
-    dataset = create_vmeval_dataset_v1(pairs_per_domain=150, random_seed=42)
+    # Generate dataset with 50 task pairs per domain
+    dataset = create_vmeval_dataset_v1(pairs_per_domain=50, random_seed=42)
     
     # Save to file
     output_path = save_master_dataset(dataset)
