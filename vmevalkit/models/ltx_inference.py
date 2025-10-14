@@ -232,7 +232,6 @@ class LTXVideoWrapper:
         self,
         model: str,
         output_dir: str = "./data/outputs", 
-        api_key: Optional[str] = None,  # Not used for local inference
         **kwargs
     ):
         """Initialize LTX-Video wrapper."""

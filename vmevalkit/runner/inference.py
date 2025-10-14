@@ -39,10 +39,10 @@ class VeoWrapper:
         self,
         model: str,
         output_dir: str = "./data/outputs",
-        api_key: Optional[str] = None,  # Not used for Veo (uses GCP auth)
         **kwargs
     ):
         """Initialize Veo wrapper."""
+        # Veo uses Google Cloud authentication (no API key needed here)
         self.model = model
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True, parents=True)
@@ -144,13 +144,13 @@ class Veo31FastWrapper:
         self,
         model: str,
         output_dir: str = "./data/outputs",
-        api_key: Optional[str] = None,  # Not used - uses WAVESPEED_API_KEY env var
         **kwargs
     ):
         """Initialize Veo 3.1 Fast wrapper."""
         self.model = model
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True, parents=True)
+        
         # Veo 3.1 Fast uses WaveSpeed API key from environment
         from vmevalkit.models.wavespeed_inference import WaveSpeedService, WaveSpeedModel
         self.veo_service = WaveSpeedService(model=WaveSpeedModel.VEO_3_1_FAST_I2V)
@@ -232,13 +232,13 @@ class Veo31Wrapper:
         self,
         model: str,
         output_dir: str = "./data/outputs",
-        api_key: Optional[str] = None,  # Not used - uses WAVESPEED_API_KEY env var
         **kwargs
     ):
         """Initialize Veo 3.1 wrapper."""
         self.model = model
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True, parents=True)
+        
         # Veo 3.1 uses WaveSpeed API key from environment
         from vmevalkit.models.wavespeed_inference import Veo31Service
         self.veo_service = Veo31Service()
@@ -320,7 +320,6 @@ class WaveSpeedWrapper:
         self,
         model: str,
         output_dir: str = "./data/outputs",
-        api_key: Optional[str] = None,  # Not used - WaveSpeed uses WAVESPEED_API_KEY env var
         **kwargs
     ):
         """Initialize WaveSpeed wrapper."""
@@ -419,7 +418,6 @@ class RunwayWrapper:
         self,
         model: str,
         output_dir: str = "./data/outputs",
-        api_key: Optional[str] = None,  # Not used - Runway uses RUNWAYML_API_SECRET env var
         **kwargs
     ):
         """Initialize Runway wrapper."""
@@ -513,7 +511,6 @@ class OpenAIWrapper:
         self,
         model: str,
         output_dir: str = "./data/outputs",
-        api_key: Optional[str] = None,  # Not used - Sora uses OPENAI_API_KEY env var
         **kwargs
     ):
         """Initialize OpenAI Sora wrapper."""
@@ -976,7 +973,6 @@ def run_inference(
     image_path: Union[str, Path],
     text_prompt: str,
     output_dir: str = "./data/outputs",
-    api_key: Optional[str] = None,
     question_data: Optional[Dict[str, Any]] = None,
     **kwargs
 ) -> Dict[str, Any]:
@@ -988,7 +984,6 @@ def run_inference(
         image_path: Path to input image
         text_prompt: Text instructions for video generation
         output_dir: Directory to save outputs
-        api_key: Optional API key (uses env var if not provided)
         question_data: Optional question metadata including final_image_path
         **kwargs: Additional model-specific parameters
         
@@ -1011,17 +1006,15 @@ def run_inference(
     video_dir = inference_dir / "video"
     video_dir.mkdir(parents=True, exist_ok=True)
     
-    # Create model instance with only constructor-safe parameters
+    # Create model instance - no API key needed! Models handle their own config
     init_kwargs = {
         "model": model_config["model"],
         "output_dir": str(video_dir),  # Save video to the video subdirectory
     }
-    if api_key is not None:
-        init_kwargs["api_key"] = api_key
 
     model = model_class(**init_kwargs)
     
-    # Run inference, forwarding runtime options (e.g., output_filename) to generate
+    # Run inference - clean kwargs, no filtering needed!
     result = model.generate(image_path, text_prompt, **kwargs)
     
     # Add structured output directory to result
@@ -1096,10 +1089,9 @@ class InferenceRunner:
                 image_path=image_path,
                 text_prompt=text_prompt,
                 output_dir=self.output_dir,
-                api_key=kwargs.get('api_key'),
                 question_data=question_data,
                 inference_id=run_id,
-                **{k: v for k, v in kwargs.items() if k != 'api_key'}
+                **kwargs  # Clean! No filtering needed
             )
             
             # Add metadata

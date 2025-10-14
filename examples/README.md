@@ -30,7 +30,12 @@ Comprehensive evaluation of 6 state-of-the-art text+image→video models across 
 # Ensure venv is activated
 source venv/bin/activate
 
-# Set required API keys
+# Configure API keys (choose one):
+# Option 1: Copy and edit template
+cp env.template .env
+# Edit .env with your API keys
+
+# Option 2: Set environment variables
 export LUMA_API_KEY="your_key"
 export GOOGLE_PROJECT_ID="your_project" 
 export WAVESPEED_API_KEY="your_key"

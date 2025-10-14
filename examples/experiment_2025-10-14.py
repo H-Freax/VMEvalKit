@@ -251,7 +251,7 @@ def run_single_inference(
             text_prompt=prompt,
             run_id=run_id,
             question_data=task,  # Pass full task data for structured output
-            **kwargs
+            **kwargs  # Clean! No API key filtering needed
         )
         
         # Add metadata
@@ -576,22 +576,6 @@ def main():
             print(f"   ❌ {model_name}: NOT FOUND in available models")
             print(f"      Please check model name or add it to AVAILABLE_MODELS")
             # Don't exit, just warn - some models might not be configured yet
-    
-    # Check for API keys (warn if missing)
-    print(f"\n🔑 Checking API keys...")
-    api_keys = {
-        "LUMA_API_KEY": os.getenv("LUMA_API_KEY"),
-        "GOOGLE_PROJECT_ID": os.getenv("GOOGLE_PROJECT_ID") or os.getenv("PROJECT_ID"),
-        "WAVESPEED_API_KEY": os.getenv("WAVESPEED_API_KEY"),
-        "RUNWAYML_API_SECRET": os.getenv("RUNWAYML_API_SECRET"),
-        "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY"),
-    }
-    
-    for key_name, key_value in api_keys.items():
-        if key_value:
-            print(f"   ✅ {key_name}: configured")
-        else:
-            print(f"   ⚠️  {key_name}: not configured (related models may fail)")
     
     print(f"\n{'=' * 80}")
     input("Press ENTER to start the pilot experiment (or Ctrl+C to cancel)...")
