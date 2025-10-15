@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Pilot Experiment: Test 6 representative models on ALL human-approved VMEvalKit tasks with parallel execution.
+Quick Test Experiment: Test 6 representative models on 1 task per domain with parallel execution.
 
-This script runs inference on ALL existing task pairs from each domain (chess, maze, raven, rotation)
-that have been approved by human curators (i.e., folders still exist).
+This script runs inference on 1 task from each domain (chess, maze, raven, rotation, sudoku)
+for rapid testing and validation of all model integrations.
 
 Models tested:
 - Luma Dream Machine: luma-ray-2
@@ -13,7 +13,7 @@ Models tested:
 - OpenAI Sora: openai-sora-2
 - WaveSpeed WAN 2.2: wavespeed-wan-2.2-i2v-720p
 
-Total: ALL approved tasks × 6 models = comprehensive evaluation
+Total: 5 tasks × 6 models = 30 quick test generations
 
 Human Curation: Only tasks with existing folders are processed (deleted folders = rejected tasks)
 
@@ -68,7 +68,7 @@ QUESTIONS_DIR = Path("data/questions")
 OUTPUT_DIR = Path("data/outputs/pilot_experiment")
 
 # Expected domains (for validation)
-EXPECTED_DOMAINS = ["chess", "maze", "raven", "rotation"]
+EXPECTED_DOMAINS = ["chess", "maze", "raven", "rotation", "sudoku"]
 
 
 # ========================================
@@ -77,10 +77,10 @@ EXPECTED_DOMAINS = ["chess", "maze", "raven", "rotation"]
 
 def discover_all_tasks_from_folders(questions_dir: Path) -> Dict[str, List[Dict[str, Any]]]:
     """
-    Discover all human-approved tasks by scanning folder structure directly.
+    Discover all human-approved tasks by direct file detection.
     
-    Only tasks with existing folders are processed (deleted folders = rejected tasks).
-    Loads metadata from individual question_metadata.json files.
+    Scans for actual PNG and TXT files, then loads supplemental metadata from JSON.
+    This approach is more robust as it relies on actual files rather than metadata.
     
     Args:
         questions_dir: Path to questions directory
@@ -88,7 +88,7 @@ def discover_all_tasks_from_folders(questions_dir: Path) -> Dict[str, List[Dict[
     Returns:
         Dictionary mapping domain to list of task dictionaries
     """
-    print(f"🔍 Discovering tasks from folder structure: {questions_dir}")
+    print(f"🔍 Discovering tasks by scanning actual files: {questions_dir}")
     
     tasks_by_domain = {}
     total_tasks = 0
@@ -110,33 +110,50 @@ def discover_all_tasks_from_folders(questions_dir: Path) -> Dict[str, List[Dict[
                 
             task_id = question_dir.name
             
-            # Check for required files
-            metadata_file = question_dir / "question_metadata.json"
+            # Look for actual files (PNG and TXT) - this is our primary source
             prompt_file = question_dir / "prompt.txt"
             first_image = question_dir / "first_frame.png"
             final_image = question_dir / "final_frame.png"
             
-            if not all([metadata_file.exists(), prompt_file.exists(), first_image.exists()]):
-                print(f"      ⚠️  Skipping {task_id}: Missing required files")
+            # Required files check
+            if not prompt_file.exists():
+                print(f"      ⚠️  Skipping {task_id}: Missing prompt.txt")
+                continue
+                
+            if not first_image.exists():
+                print(f"      ⚠️  Skipping {task_id}: Missing first_frame.png")
                 continue
             
-            # Load metadata from question_metadata.json
-            with open(metadata_file, 'r') as f:
-                task_metadata = json.load(f)
+            # Load prompt directly from actual file
+            try:
+                prompt_text = prompt_file.read_text().strip()
+            except Exception as e:
+                print(f"      ⚠️  Skipping {task_id}: Cannot read prompt.txt - {e}")
+                continue
             
-            # Load prompt directly from prompt.txt
-            prompt_text = prompt_file.read_text().strip()
-            
-            # Create standardized task dictionary
+            # Create task dictionary from actual detected files
             task = {
                 "id": task_id,
                 "domain": domain,
                 "prompt": prompt_text,
-                "first_image_path": str(first_image),
-                "final_image_path": str(final_image) if final_image.exists() else None,
-                # Include original metadata
-                **task_metadata
+                "first_image_path": str(first_image.absolute()),
+                "final_image_path": str(final_image.absolute()) if final_image.exists() else None
             }
+            
+            # Load supplemental metadata from JSON files if they exist
+            metadata_file = question_dir / "question_metadata.json"
+            if metadata_file.exists():
+                try:
+                    with open(metadata_file, 'r') as f:
+                        supplemental_metadata = json.load(f)
+                    
+                    # Add supplemental data but don't override core fields
+                    for key, value in supplemental_metadata.items():
+                        if key not in task:  # Don't override our detected values
+                            task[key] = value
+                            
+                except Exception as e:
+                    print(f"      ⚠️  Warning: Could not load metadata for {task_id} - {e}")
             
             domain_tasks.append(task)
             
@@ -310,7 +327,7 @@ def run_pilot_experiment(
         Dictionary with all results and statistics
     """
     print("=" * 80)
-    print("🚀 VMEVAL KIT COMPREHENSIVE EVALUATION (ALL APPROVED TASKS)")
+    print("🚀 VMEVAL KIT QUICK TEST (1 TASK PER DOMAIN)")
     print("=" * 80)
     print(f"\n📊 Experiment Configuration:")
     print(f"   Models: {len(models)}")
@@ -565,7 +582,16 @@ def main():
         sys.exit(1)
     
     # Discover all approved tasks from folders
-    tasks_by_domain = discover_all_tasks_from_folders(QUESTIONS_DIR)
+    all_tasks_by_domain = discover_all_tasks_from_folders(QUESTIONS_DIR)
+    
+    # Limit to 1 task per domain for quick testing
+    tasks_by_domain = {}
+    for domain, tasks in all_tasks_by_domain.items():
+        if tasks:
+            tasks_by_domain[domain] = [tasks[0]]  # Take only first task
+            print(f"   🎯 Testing with 1 task from {domain}: {tasks[0]['id']}")
+        else:
+            tasks_by_domain[domain] = []
     
     # Verify models are available
     print(f"\n🔍 Verifying {len(PILOT_MODELS)} models for parallel testing...")
@@ -578,7 +604,7 @@ def main():
             # Don't exit, just warn - some models might not be configured yet
     
     print(f"\n{'=' * 80}")
-    input("Press ENTER to start the pilot experiment (or Ctrl+C to cancel)...")
+    input("Press ENTER to start the quick test experiment (or Ctrl+C to cancel)...")
     
     # Verify we found tasks
     if not tasks_by_domain or sum(len(tasks) for tasks in tasks_by_domain.values()) == 0:
@@ -611,7 +637,7 @@ def main():
     
     # Print final summary
     print(f"\n{'=' * 80}")
-    print("🎉 COMPREHENSIVE EVALUATION COMPLETE!")
+    print("🎉 QUICK TEST COMPLETE!")
     print(f"{'=' * 80}")
     stats = experiment_results["statistics"]
     print(f"\n📊 Final Statistics:")

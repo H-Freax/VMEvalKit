@@ -181,10 +181,10 @@ class WaveSpeedService:
         # Build endpoint URL based on model type
         if self.model in [WaveSpeedModel.VEO_3_1_I2V, WaveSpeedModel.VEO_3_1_FAST_I2V]:
             # For Veo 3.1 models, use the Google prefix path
-            submit_url = f"{self.base_url}/api/v3/google/{self.model}"
+            submit_url = f"{self.base_url}/api/v3/google/{self.model.value}"
         else:
             # For WAN models, use wavespeed-ai prefix
-            submit_url = f"{self.base_url}/api/v3/wavespeed-ai/{self.model}"
+            submit_url = f"{self.base_url}/api/v3/wavespeed-ai/{self.model.value}"
         
         payload = {
             "prompt": prompt,
@@ -320,8 +320,8 @@ class Veo31Service(WaveSpeedService):
         output_path: Optional[Path] = None,
         poll_timeout_s: float = 300.0,
         poll_interval_s: float = 2.0,
-        aspect_ratio: Optional[str] = None,
-        duration: Optional[float] = None,
+        aspect_ratio: Optional[str] = "16:9",
+        duration: Optional[float] = 8.0,
         resolution: Optional[str] = "1080p",  # Default to 1080p for Veo 3.1
         generate_audio: bool = True,  # Default to generating audio
         negative_prompt: Optional[str] = None
