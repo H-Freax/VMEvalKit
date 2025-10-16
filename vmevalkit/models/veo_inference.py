@@ -346,16 +346,21 @@ class VeoService:
             
         input_ratio = image_width / image_height
         
-        # Calculate distance to each supported aspect ratio
-        ratio_16_9 = 16 / 9  # ~1.78
-        ratio_9_16 = 9 / 16  # ~0.56
+        # Special handling for square images (1:1)
+        # Default to landscape (16:9) for square images since it's more common for video
+        if 0.9 <= input_ratio <= 1.1:  # Close to square
+            best_ratio = "16:9"
+            logger.info(f"Square image detected ({image_width}×{image_height}) -> defaulting to landscape {best_ratio}")
+            return best_ratio
         
-        diff_16_9 = abs(input_ratio - ratio_16_9)
-        diff_9_16 = abs(input_ratio - ratio_9_16)
+        # For non-square images, choose based on orientation
+        # If input is wider than tall (>1), use landscape; otherwise use portrait
+        if input_ratio > 1:
+            best_ratio = "16:9"  # Landscape
+        else:
+            best_ratio = "9:16"  # Portrait
         
-        best_ratio = "16:9" if diff_16_9 < diff_9_16 else "9:16"
-        
-        logger.info(f"Input aspect ratio {input_ratio:.3f} -> Best VEO match: {best_ratio}")
+        logger.info(f"Input aspect ratio {input_ratio:.3f} ({image_width}×{image_height}) -> Best VEO match: {best_ratio}")
         return best_ratio
 
     def _pad_image_to_aspect_ratio(self, image: Image.Image, target_aspect_ratio: str) -> Image.Image:

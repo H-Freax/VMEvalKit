@@ -40,17 +40,17 @@ class RunwayService:
         constraints = {
             "gen4_turbo": {
                 "durations": [5, 10],
-                "ratios": ["1280:720", "720:1280", "1024:1024"],  # 720p landscape/portrait, square
+                "ratios": ["16:9", "9:16", "1:1"],  # Standard aspect ratios supported by Gen-4 Turbo
                 "description": "Runway Gen-4 Turbo - Fast high-quality generation"
             },
             "gen4_aleph": {
                 "durations": [5],
-                "ratios": ["1280:720", "720:1280", "1024:1024"],  # 720p landscape/portrait, square
+                "ratios": ["16:9", "9:16", "1:1"],  # Standard aspect ratios supported by Gen-4 Aleph
                 "description": "Runway Gen-4 Aleph - Premium quality"
             },
             "gen3a_turbo": {
                 "durations": [5, 10],
-                "ratios": ["1280:768", "768:1280"],  # Gen-3 specific ratios
+                "ratios": ["1280:768", "768:1280"],  # Gen-3 specific pixel dimensions
                 "description": "Runway Gen-3A Turbo - Proven performance"
             }
         }
@@ -69,24 +69,40 @@ class RunwayService:
             image_height: Original image height
             
         Returns:
-            Best matching aspect ratio string (e.g., "1280:720")
+            Best matching aspect ratio string (e.g., "16:9", "1:1", or "1280:768")
         """
         input_ratio = image_width / image_height
         supported_ratios = self.model_constraints["ratios"]
+        
+        # Check if 1:1 is supported and image is square
+        if "1:1" in supported_ratios and 0.9 <= input_ratio <= 1.1:
+            logger.info(f"Square image detected ({image_width}×{image_height}) -> using 1:1")
+            return "1:1"
         
         best_ratio = None
         min_diff = float('inf')
         
         for ratio_str in supported_ratios:
-            w, h = map(int, ratio_str.split(':'))
-            ratio = w / h
+            # Skip 1:1 if we already handled it above
+            if ratio_str == "1:1":
+                continue
+                
+            # Handle both aspect ratio strings (e.g., "16:9") and pixel dimensions (e.g., "1280:768")
+            if ':' in ratio_str:
+                parts = ratio_str.split(':')
+                w, h = map(float, parts)  # Use float to handle both "16:9" and "1280:768"
+                ratio = w / h
+            else:
+                # Fallback for any other format
+                continue
+            
             diff = abs(input_ratio - ratio)
             
             if diff < min_diff:
                 min_diff = diff
                 best_ratio = ratio_str
         
-        logger.info(f"Input aspect ratio {input_ratio:.3f} -> Best match: {best_ratio}")
+        logger.info(f"Input aspect ratio {input_ratio:.3f} ({image_width}×{image_height}) -> Best match: {best_ratio}")
         return best_ratio
 
     def _resize_and_pad_image(self, image_path: Union[str, Path], target_ratio: str) -> Path:
@@ -95,13 +111,27 @@ class RunwayService:
         
         Args:
             image_path: Path to input image
-            target_ratio: Target aspect ratio (e.g., "1280:720")
+            target_ratio: Target aspect ratio (e.g., "16:9" or "1280:768")
             
         Returns:
             Path to processed image file
         """
-        # Parse target dimensions
-        target_w, target_h = map(int, target_ratio.split(':'))
+        # Parse target dimensions - handle both aspect ratios and pixel dimensions
+        if ':' in target_ratio:
+            parts = target_ratio.split(':')
+            if '.' not in parts[0] and len(parts[0]) > 2:  # Likely pixel dimensions like "1280:768"
+                target_w, target_h = map(int, parts)
+            else:  # Aspect ratio like "16:9"
+                # Convert aspect ratio to target dimensions (use standard 720p resolution)
+                aspect_w, aspect_h = map(float, parts)
+                aspect_ratio = aspect_w / aspect_h
+                if aspect_ratio > 1:  # Landscape
+                    target_w, target_h = 1280, int(1280 / aspect_ratio)
+                else:  # Portrait
+                    target_h, target_w = 1280, int(1280 * aspect_ratio)
+        else:
+            # Default to 720p 16:9 if format not recognized
+            target_w, target_h = 1280, 720
         
         # Load and convert image
         image = Image.open(image_path)

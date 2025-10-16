@@ -91,13 +91,12 @@ class WaveSpeedService:
             preferred_ratio: User-specified preferred ratio
             
         Returns:
-            Best aspect ratio string (e.g., "16:9", "9:16", "1:1")
+            Best aspect ratio string ("16:9" or "9:16" only)
         """
-        # VEO 3.1 via WaveSpeed supports these aspect ratios
+        # VEO 3.1 via WaveSpeed API only supports these two aspect ratios
         supported_ratios = {
-            "16:9": 16/9,   # ~1.78
-            "9:16": 9/16,   # ~0.56  
-            "1:1": 1.0      # 1.0
+            "16:9": 16/9,   # ~1.78 (landscape)
+            "9:16": 9/16    # ~0.56 (portrait)
         }
         
         # If user specified a ratio and it's supported, use it
@@ -106,17 +105,21 @@ class WaveSpeedService:
             
         input_ratio = image_width / image_height
         
-        # Find the closest matching aspect ratio
-        best_ratio = None
-        min_diff = float('inf')
+        # Special handling for square images (1:1)
+        # Default to landscape (16:9) for square images since it's more common
+        if 0.9 <= input_ratio <= 1.1:  # Close to square
+            best_ratio = "16:9"
+            logger.info(f"Square image detected ({image_width}×{image_height}) -> defaulting to landscape {best_ratio}")
+            return best_ratio
         
-        for ratio_str, ratio_val in supported_ratios.items():
-            diff = abs(input_ratio - ratio_val)
-            if diff < min_diff:
-                min_diff = diff
-                best_ratio = ratio_str
+        # For non-square images, find the closest matching aspect ratio
+        # If input is wider than tall (>1), use landscape; otherwise use portrait
+        if input_ratio > 1:
+            best_ratio = "16:9"  # Landscape
+        else:
+            best_ratio = "9:16"  # Portrait
         
-        logger.info(f"Input aspect ratio {input_ratio:.3f} -> Best VEO match: {best_ratio}")
+        logger.info(f"Input aspect ratio {input_ratio:.3f} ({image_width}×{image_height}) -> Best VEO match: {best_ratio}")
         return best_ratio
 
     def _pad_image_for_veo(self, image: Image.Image, target_aspect_ratio: str) -> Image.Image:
@@ -125,16 +128,15 @@ class WaveSpeedService:
         
         Args:
             image: PIL Image to pad
-            target_aspect_ratio: Target aspect ratio ("16:9", "9:16", "1:1")
+            target_aspect_ratio: Target aspect ratio ("16:9" or "9:16")
             
         Returns:
             PIL Image with white padding to match target aspect ratio
         """
-        # Parse target aspect ratio
+        # Parse target aspect ratio - VEO 3.1 via WaveSpeed only supports these
         aspect_ratios = {
             "16:9": 16/9,
-            "9:16": 9/16, 
-            "1:1": 1.0
+            "9:16": 9/16
         }
         
         if target_aspect_ratio not in aspect_ratios:
@@ -482,7 +484,7 @@ class Veo31Service(WaveSpeedService):
             output_path: Optional path to save video (if not provided, returns URL)
             poll_timeout_s: Maximum time to wait for completion
             poll_interval_s: Time between polling attempts
-            aspect_ratio: Video aspect ratio (e.g., "16:9", "9:16", "1:1"). If None, automatically detects best ratio.
+            aspect_ratio: Video aspect ratio ("16:9" or "9:16" only). If None, automatically detects best ratio.
             duration: Video duration in seconds (up to 8 seconds)
             resolution: Output resolution ("720p" or "1080p", defaults to "1080p")
             generate_audio: Whether to generate audio (defaults to True)

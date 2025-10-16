@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-Quick Test Experiment: Test 6 representative models on 1 task per domain with parallel execution.
+Quick Test Experiment: Test 6 representative models on 1 task per domain with sequential execution.
 
 This script runs inference on 1 task from each domain (chess, maze, raven, rotation, sudoku)
-for rapid testing and validation of all model integrations.
+for rapid testing and validation of all model integrations. Models are processed sequentially
+(one model at a time), and for each model, tasks are processed one by one.
 
 Models tested:
 - Luma Dream Machine: luma-ray-2
@@ -13,7 +14,7 @@ Models tested:
 - OpenAI Sora: openai-sora-2
 - WaveSpeed WAN 2.2: wavespeed-wan-2.2-i2v-720p
 
-Total: 5 tasks × 6 models = 30 quick test generations
+Total: 5 tasks × 6 models = 30 quick test generations (sequential)
 
 Human Curation: Only tasks with existing folders are processed (deleted folders = rejected tasks)
 
@@ -32,7 +33,6 @@ from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime
 import traceback
 from PIL import Image
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 import time
 import signal
@@ -504,13 +504,13 @@ def run_pilot_experiment(
     models: Dict[str, str],
     output_dir: Path,
     skip_existing: bool = True,
-    max_workers: int = 6,  # Parallel workers (one per model)
     experiment_id: str = None,  # For resume capability
     enable_resume: bool = True  # Enable resume mechanism
 ) -> Dict[str, Any]:
     """
-    Run full pilot experiment with PARALLEL execution on ALL human-approved tasks.
+    Run full pilot experiment with SEQUENTIAL execution on ALL human-approved tasks.
     
+    Processes one model at a time, and for each model, one task at a time.
     Supports resume capability with checkpoint saves.
     
     Args:
@@ -518,7 +518,6 @@ def run_pilot_experiment(
         models: Dictionary of model names to test
         output_dir: Base output directory
         skip_existing: Skip tasks that already have outputs
-        max_workers: Maximum parallel workers for ThreadPoolExecutor
         experiment_id: Unique experiment identifier for resume (auto-generated if None)
         enable_resume: Enable checkpoint-based resume mechanism
         
@@ -531,7 +530,7 @@ def run_pilot_experiment(
     print(f"\n📊 Experiment Configuration:")
     print(f"   Models: {len(models)}")
     print(f"   Domains: {len(tasks_by_domain)}")
-    print(f"   🔄 Parallel Workers: {max_workers}")
+    print(f"   🔄 Execution Mode: SEQUENTIAL")
     print(f"   📥 Resume Enabled: {enable_resume}")
     
     # Calculate totals
@@ -560,9 +559,8 @@ def run_pilot_experiment(
             print(f"   Failed (will retry): {resume_stats['failed']}")
             print(f"   Interrupted (will retry): {resume_stats['in_progress']}\n")
     
-    # Thread-safe results storage
+    # Results storage (no longer needs thread safety since we're sequential)
     all_results = []
-    results_lock = threading.Lock()
     
     statistics = {
         "total_tasks": total_tasks,
@@ -574,7 +572,6 @@ def run_pilot_experiment(
         "by_model": {},
         "by_domain": {}
     }
-    stats_lock = threading.Lock()
     
     # Initialize statistics
     for model in models.keys():
@@ -591,132 +588,120 @@ def run_pilot_experiment(
     
     experiment_start = datetime.now()
     
-    # Create all inference jobs
-    inference_jobs = []
-    for domain, tasks in tasks_by_domain.items():
-        for task in tasks:
-            for model_name in models.keys():
-                inference_jobs.append({
-                    "model_name": model_name,
-                    "task": task,
-                    "domain": domain
-                })
-    
-    print(f"📋 Created {len(inference_jobs)} inference jobs")
-    print("🚀 Starting parallel execution...\n")
+    # Count total jobs for progress tracking
+    total_jobs = sum(len(tasks) for tasks in tasks_by_domain.values()) * len(models)
+    print(f"📋 Total inference jobs to run: {total_jobs}")
+    print("🚀 Starting sequential execution...\n")
+    print("   Processing order: Model by model, task by task\n")
     
     # Create a shared InferenceRunner instance
     runner = InferenceRunner(output_dir=str(output_dir))
     
-    # Function to process a single job
-    def process_job(job: Dict[str, Any]) -> Dict[str, Any]:
-        model_name = job["model_name"]
-        task = job["task"]
-        domain = job["domain"]
-        task_id = task["id"]
-        job_id = f"{model_name}_{task_id}"
+    # Track overall progress
+    job_counter = 0
+    
+    # Sequential execution: model by model, task by task
+    for model_name, model_display in models.items():
+        print(f"\n{'='*60}")
+        print(f"🤖 Processing Model: {model_display} ({model_name})")
+        print(f"{'='*60}")
         
-        # Check progress tracker first if enabled
-        if progress_tracker:
-            if progress_tracker.should_skip_job(job_id):
-                with stats_lock:
+        model_start_time = datetime.now()
+        model_completed = 0
+        model_failed = 0
+        model_skipped = 0
+        
+        # Process all tasks for this model
+        for domain, tasks in tasks_by_domain.items():
+            print(f"\n  📚 Domain: {domain.title()}")
+            
+            for task in tasks:
+                job_counter += 1
+                task_id = task["id"]
+                job_id = f"{model_name}_{task_id}"
+                
+                print(f"    [{job_counter}/{total_jobs}] Processing: {task_id}")
+                
+                # Check progress tracker first if enabled
+                if progress_tracker:
+                    if progress_tracker.should_skip_job(job_id):
+                        statistics["skipped"] += 1
+                        statistics["by_model"][model_name]["skipped"] += 1
+                        statistics["by_domain"][domain]["skipped"] += 1
+                        model_skipped += 1
+                        print(f"      ⏭️  Skipped (already completed in previous run)")
+                        continue
+                    
+                    # Mark job as started
+                    if not progress_tracker.job_started(job_id):
+                        # Already completed (shouldn't happen in sequential)
+                        statistics["skipped"] += 1
+                        statistics["by_model"][model_name]["skipped"] += 1
+                        statistics["by_domain"][domain]["skipped"] += 1
+                        model_skipped += 1
+                        print(f"      ⏭️  Skipped (already completed)")
+                        continue
+                
+                # Check if inference folder already exists
+                run_id_pattern = f"{model_name}_{task_id}_*"
+                existing_dirs = list(output_dir.glob(run_id_pattern))
+                
+                if skip_existing and existing_dirs and not progress_tracker:
                     statistics["skipped"] += 1
                     statistics["by_model"][model_name]["skipped"] += 1
                     statistics["by_domain"][domain]["skipped"] += 1
-                return {
-                    "task_id": task_id,
-                    "model_name": model_name,
-                    "status": "resumed",
-                    "message": "Already completed in previous run"
-                }
-            
-            # Mark job as started
-            if not progress_tracker.job_started(job_id):
-                # Already completed (race condition check)
-                return {
-                    "task_id": task_id,
-                    "model_name": model_name,
-                    "status": "resumed",
-                    "message": "Already completed"
-                }
-        
-        # With new structure, check if inference folder already exists
-        run_id = f"{model_name}_{task_id}_*"
-        existing_dirs = list(output_dir.glob(run_id))
-        
-        if skip_existing and existing_dirs and not progress_tracker:
-            with stats_lock:
-                statistics["skipped"] += 1
-                statistics["by_model"][model_name]["skipped"] += 1
-                statistics["by_domain"][domain]["skipped"] += 1
-            return {
-                "task_id": task_id,
-                "model_name": model_name,
-                "status": "skipped",
-                "existing_dir": str(existing_dirs[0])
-            }
-        
-        # Run inference with structured output
-        result = run_single_inference(
-            model_name=model_name,
-            task=task,
-            category=domain,  # Pass domain as category for backward compatibility
-            output_dir=output_dir,
-            runner=runner  # Pass the shared runner instance
-        )
-        
-        # Update progress tracker
-        if progress_tracker:
-            if result["success"]:
-                progress_tracker.job_completed(job_id, result)
-            else:
-                progress_tracker.job_failed(job_id, result.get("error", "Unknown error"))
-        
-        # Update statistics and results (thread-safe)
-        with results_lock:
-            all_results.append(result)
-        
-        with stats_lock:
-            if result["success"]:
-                statistics["completed"] += 1
-                statistics["by_model"][model_name]["completed"] += 1
-                statistics["by_domain"][domain]["completed"] += 1
-            else:
-                statistics["failed"] += 1
-                statistics["by_model"][model_name]["failed"] += 1
-                statistics["by_domain"][domain]["failed"] += 1
-            
-            # Update progress tracker statistics
-            if progress_tracker:
-                progress_tracker.update_statistics(statistics)
-            
-            # Save intermediate results periodically
-            if (statistics["completed"] + statistics["failed"]) % 5 == 0:
-                save_results(all_results.copy(), statistics.copy(), output_dir, intermediate=True)
-        
-        return result
-    
-    # Execute jobs in parallel
-    completed_count = 0
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        # Submit all jobs
-        future_to_job = {executor.submit(process_job, job): job for job in inference_jobs}
-        
-        # Process completed jobs
-        for future in as_completed(future_to_job):
-            job = future_to_job[future]
-            completed_count += 1
-            
-            try:
-                result = future.result()
-                status = result.get("status", "completed" if result.get("success") else "failed")
-                print(f"[{completed_count}/{len(inference_jobs)}] {job['task']['id']} × {job['model_name']}: {status}")
-            except Exception as exc:
-                print(f"[{completed_count}/{len(inference_jobs)}] {job['task']['id']} × {job['model_name']}: ERROR - {exc}")
-                with stats_lock:
+                    model_skipped += 1
+                    print(f"      ⏭️  Skipped (existing output: {existing_dirs[0].name})")
+                    continue
+                
+                # Run inference with structured output
+                result = run_single_inference(
+                    model_name=model_name,
+                    task=task,
+                    category=domain,
+                    output_dir=output_dir,
+                    runner=runner
+                )
+                
+                # Update progress tracker
+                if progress_tracker:
+                    if result["success"]:
+                        progress_tracker.job_completed(job_id, result)
+                    else:
+                        progress_tracker.job_failed(job_id, result.get("error", "Unknown error"))
+                
+                # Update statistics and results
+                all_results.append(result)
+                
+                if result["success"]:
+                    statistics["completed"] += 1
+                    statistics["by_model"][model_name]["completed"] += 1
+                    statistics["by_domain"][domain]["completed"] += 1
+                    model_completed += 1
+                    print(f"      ✅ Completed successfully")
+                else:
                     statistics["failed"] += 1
-                    statistics["by_model"][job["model_name"]]["failed"] += 1
-                    statistics["by_domain"][job["domain"]]["failed"] += 1
+                    statistics["by_model"][model_name]["failed"] += 1
+                    statistics["by_domain"][domain]["failed"] += 1
+                    model_failed += 1
+                    print(f"      ❌ Failed: {result.get('error', 'Unknown error')}")
+                
+                # Update progress tracker statistics
+                if progress_tracker:
+                    progress_tracker.update_statistics(statistics)
+                
+                # Save intermediate results periodically (every 5 completions)
+                if (statistics["completed"] + statistics["failed"]) % 5 == 0:
+                    save_results(all_results.copy(), statistics.copy(), output_dir, intermediate=True)
+                    print(f"      💾 Intermediate results saved")
+        
+        # Model summary
+        model_duration = (datetime.now() - model_start_time).total_seconds()
+        print(f"\n  📊 Model {model_display} Summary:")
+        print(f"     Completed: {model_completed}")
+        print(f"     Failed: {model_failed}")
+        print(f"     Skipped: {model_skipped}")
+        print(f"     Duration: {format_duration(model_duration)}")
     
     experiment_end = datetime.now()
     duration = (experiment_end - experiment_start).total_seconds()
@@ -733,8 +718,7 @@ def run_pilot_experiment(
         progress_tracker.save_progress(force=True)
         print(f"\n💾 Final checkpoint saved")
     
-    print(f"\n⚡ Parallel execution completed in {format_duration(duration)}")
-    print(f"   Sequential estimate would be: ~{format_duration(duration * max_workers)}")
+    print(f"\n⏱️  Sequential execution completed in {format_duration(duration)}")
     
     if statistics.get("resumed", 0) > 0:
         print(f"   📥 Resumed {statistics['resumed']} previously completed jobs")
@@ -845,7 +829,6 @@ def main():
     parser.add_argument("--resume", type=str, help="Resume a previous experiment by ID or 'latest'")
     parser.add_argument("--no-resume", action="store_true", help="Disable resume mechanism entirely")
     parser.add_argument("--experiment-id", type=str, help="Custom experiment ID for this run")
-    parser.add_argument("--workers", type=int, default=6, help="Number of parallel workers (default: 6)")
     parser.add_argument("--all-tasks", action="store_true", help="Run all tasks, not just 1 per domain")
     parser.add_argument("--list-checkpoints", action="store_true", help="List available checkpoints and exit")
     args = parser.parse_args()
@@ -951,7 +934,6 @@ def main():
         models=PILOT_MODELS,
         output_dir=OUTPUT_DIR,
         skip_existing=True,
-        max_workers=args.workers,
         experiment_id=experiment_id,
         enable_resume=not args.no_resume
     )

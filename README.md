@@ -143,7 +143,7 @@ This structure ensures reproducibility and makes batch analysis easy.
 
 ## Examples
 
-See `examples/pilot_experiment.py` for parallel inference across multiple models.
+See `examples/experiment_2025-10-14.py` for sequential inference across multiple models.
 
 ## Submodules
 
@@ -203,6 +203,7 @@ python examples/experiment_2025-10-14.py --all-tasks
 The experiment script includes robust resume capability for long-running experiments:
 
 **Features:**
+- 🔄 Sequential execution: one model at a time, one task at a time
 - ⚡ Automatic checkpointing every 5 completed jobs
 - 🛡️ Graceful interruption handling (Ctrl+C saves progress)
 - 📥 Resume from latest or specific experiment
@@ -222,9 +223,6 @@ python examples/experiment_2025-10-14.py --list-checkpoints
 
 # Start with custom experiment ID
 python examples/experiment_2025-10-14.py --experiment-id my_test_001
-
-# Run with more parallel workers
-python examples/experiment_2025-10-14.py --workers 10
 ```
 
 **Command Options:**
@@ -234,7 +232,6 @@ python examples/experiment_2025-10-14.py --workers 10
 | `--resume <ID or 'latest'>` | Resume a previous experiment |
 | `--no-resume` | Disable resume mechanism |
 | `--experiment-id <ID>` | Set custom experiment ID |
-| `--workers <N>` | Number of parallel workers (default: 6) |
 | `--all-tasks` | Run all tasks instead of 1 per domain |
 | `--list-checkpoints` | List available checkpoints |
 
