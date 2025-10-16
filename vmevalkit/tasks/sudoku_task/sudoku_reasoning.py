@@ -249,8 +249,7 @@ class SudokuTaskGenerator:
     def __init__(self):
         self.sudoku_gen = Simple3x3SudokuGenerator()
         
-    def generate_single_task(self, task_id: str, difficulty: int = 1, 
-                           output_dir: Optional[Path] = None) -> SudokuTaskPair:
+    def generate_single_task(self, task_id: str, difficulty: int = 1) -> SudokuTaskPair:
         """Generate a single 3x3 sudoku task pair."""
         
         # Use temporary directory like other tasks
@@ -301,15 +300,11 @@ class SudokuTaskGenerator:
         
         return task_pair
     
-    def generate_dataset(self, num_samples: int = 10, difficulties: List[int] = None,
-                        output_dir: Optional[Path] = None) -> SudokuDataset:
+    def generate_dataset(self, num_samples: int = 10) -> Dict[str, Any]:
         """Generate a dataset of 3x3 sudoku tasks."""
         
-        if difficulties is None:
-            difficulties = [0, 1, 2]  # Easy, Medium, Hard by default
-        
-        if output_dir is None:
-            output_dir = Path("data/questions/sudoku_task")
+        # Use all difficulty levels by default
+        difficulties = [0, 1, 2]  # Easy, Medium, Hard
         
         tasks = []
         
@@ -320,7 +315,7 @@ class SudokuTaskGenerator:
             task_id = f"sudoku_{i:04d}"
             
             try:
-                task = self.generate_single_task(task_id, difficulty, output_dir)
+                task = self.generate_single_task(task_id, difficulty)
                 tasks.append(task)
                 print(f"✅ Generated task {i+1}/{num_samples}: {task_id} ({task.difficulty}) - {task.num_given}/9 given")
             except Exception as e:
@@ -359,25 +354,8 @@ class SudokuTaskGenerator:
             }
         }
         
-        # Save dataset
-        dataset_path = output_dir / "sudoku_dataset.json"
-        with open(dataset_path, 'w') as f:
-            json.dump(dataset_dict, f, indent=2)
-        print(f"💾 Saved dataset to {dataset_path}")
-        
-        # Also create the SudokuDataset object for compatibility
-        dataset = SudokuDataset(
-            name="3x3 Sudoku Reasoning Dataset", 
-            description="Simple 3x3 Sudoku puzzles for video model reasoning evaluation",
-            pairs=tasks,
-            metadata={
-                "total_tasks": len(tasks),
-                "difficulties": difficulties,
-                "grid_size": "3x3",
-                "generation_date": datetime.now().isoformat(),
-                "task_categories": ["Sudoku"]
-            }
-        )
+        # Note: We don't save the JSON file here - that's handled by create_dataset.py
+        # This matches the pattern used by other tasks (maze, rotation, chess, raven)
         
         # Return the dictionary format for consistency with other tasks
         return dataset_dict
@@ -390,18 +368,12 @@ def generate_sudoku_board_image(sudoku_array: List[int], output_path: str) -> st
     return output_path
 
 
-def create_dataset(num_samples: int = 10, difficulties: List[int] = None,
-                  output_dir: Optional[str] = None) -> SudokuDataset:
-    """Main function to create 3x3 sudoku dataset."""
-    
-    if output_dir:
-        output_dir = Path(output_dir)
+def create_dataset(num_samples: int = 10) -> Dict[str, Any]:
+    """Main function to create 3x3 sudoku dataset - matches API of other tasks."""
     
     generator = SudokuTaskGenerator()
-    return generator.generate_dataset(num_samples, difficulties, output_dir)
+    return generator.generate_dataset(num_samples)
 
 
-if __name__ == "__main__":
-    # Example usage
-    dataset = create_dataset(num_samples=5, difficulties=[0, 1, 2])
-    print(f"Generated 3x3 Sudoku dataset with {len(dataset)} tasks")
+# Dataset creation should only be done via vmevalkit/runner/create_dataset.py
+# This module only provides the create_dataset() function as an API
