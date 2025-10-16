@@ -211,6 +211,11 @@ class VeoService:
             - video_bytes: bytes of the first video if inline; or downloaded from GCS if requested; else None
             - metadata: full response dict (including any GCS URIs)
         """
+        # Auto-detect best aspect ratio if image provided and using default aspect ratio
+        if image_path and aspect_ratio == "16:9":  # Only auto-detect if using default
+            with Image.open(image_path) as img:
+                aspect_ratio = self._determine_best_aspect_ratio(img.width, img.height, aspect_ratio)
+        
         self._validate_params(duration_seconds, aspect_ratio, resolution, sample_count)
 
         token = get_google_access_token()
@@ -323,6 +328,35 @@ class VeoService:
             raise ValueError('resolution must be "720p" or "1080p"')
         if not (1 <= sample_count <= 4):
             raise ValueError("sample_count must be between 1 and 4")
+
+    def _determine_best_aspect_ratio(self, image_width: int, image_height: int, preferred_ratio: Optional[str] = None) -> str:
+        """
+        Determine the best aspect ratio for VEO based on input image dimensions.
+        
+        Args:
+            image_width: Original image width
+            image_height: Original image height  
+            preferred_ratio: User-specified preferred ratio ("16:9" or "9:16")
+            
+        Returns:
+            Best aspect ratio ("16:9" or "9:16")
+        """
+        if preferred_ratio and preferred_ratio in ("16:9", "9:16"):
+            return preferred_ratio
+            
+        input_ratio = image_width / image_height
+        
+        # Calculate distance to each supported aspect ratio
+        ratio_16_9 = 16 / 9  # ~1.78
+        ratio_9_16 = 9 / 16  # ~0.56
+        
+        diff_16_9 = abs(input_ratio - ratio_16_9)
+        diff_9_16 = abs(input_ratio - ratio_9_16)
+        
+        best_ratio = "16:9" if diff_16_9 < diff_9_16 else "9:16"
+        
+        logger.info(f"Input aspect ratio {input_ratio:.3f} -> Best VEO match: {best_ratio}")
+        return best_ratio
 
     def _pad_image_to_aspect_ratio(self, image: Image.Image, target_aspect_ratio: str) -> Image.Image:
         """

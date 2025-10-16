@@ -10,6 +10,8 @@ import asyncio
 from typing import Optional, Dict, Any, Union
 from pathlib import Path
 import logging
+import io
+from PIL import Image
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +60,86 @@ class RunwayService:
         
         return constraints[model]
     
+    def _determine_best_aspect_ratio(self, image_width: int, image_height: int) -> str:
+        """
+        Determine the best aspect ratio match from supported ratios.
+        
+        Args:
+            image_width: Original image width
+            image_height: Original image height
+            
+        Returns:
+            Best matching aspect ratio string (e.g., "1280:720")
+        """
+        input_ratio = image_width / image_height
+        supported_ratios = self.model_constraints["ratios"]
+        
+        best_ratio = None
+        min_diff = float('inf')
+        
+        for ratio_str in supported_ratios:
+            w, h = map(int, ratio_str.split(':'))
+            ratio = w / h
+            diff = abs(input_ratio - ratio)
+            
+            if diff < min_diff:
+                min_diff = diff
+                best_ratio = ratio_str
+        
+        logger.info(f"Input aspect ratio {input_ratio:.3f} -> Best match: {best_ratio}")
+        return best_ratio
+
+    def _resize_and_pad_image(self, image_path: Union[str, Path], target_ratio: str) -> Path:
+        """
+        Resize and pad image to match target dimensions exactly.
+        
+        Args:
+            image_path: Path to input image
+            target_ratio: Target aspect ratio (e.g., "1280:720")
+            
+        Returns:
+            Path to processed image file
+        """
+        # Parse target dimensions
+        target_w, target_h = map(int, target_ratio.split(':'))
+        
+        # Load and convert image
+        image = Image.open(image_path)
+        if image.mode != "RGB":
+            image = image.convert("RGB")
+        
+        original_w, original_h = image.size
+        logger.info(f"Original image size: {original_w}×{original_h}")
+        
+        # Calculate scaling to fit image within target dimensions while preserving aspect ratio
+        scale_w = target_w / original_w
+        scale_h = target_h / original_h
+        scale = min(scale_w, scale_h)  # Use smaller scale to ensure image fits
+        
+        # Resize image
+        new_w = int(original_w * scale)
+        new_h = int(original_h * scale)
+        resized_image = image.resize((new_w, new_h), Image.Resampling.LANCZOS)
+        
+        # Create canvas with exact target dimensions and white background
+        padded_image = Image.new("RGB", (target_w, target_h), color="white")
+        
+        # Calculate position to center the resized image
+        x_offset = (target_w - new_w) // 2
+        y_offset = (target_h - new_h) // 2
+        
+        # Paste resized image onto padded canvas
+        padded_image.paste(resized_image, (x_offset, y_offset))
+        
+        # Save processed image
+        processed_path = Path(image_path).parent / f"runway_processed_{Path(image_path).name}"
+        padded_image.save(processed_path, "PNG", quality=95)
+        
+        logger.info(f"Processed image: {original_w}×{original_h} -> {new_w}×{new_h} -> {target_w}×{target_h}")
+        logger.info(f"Saved to: {processed_path}")
+        
+        return processed_path
+    
     async def generate_video(
         self,
         prompt: str,
@@ -85,35 +167,51 @@ class RunwayService:
             logger.warning(f"Duration {duration}s not supported for {self.model}. Using {valid_durations[0]}s")
             duration = valid_durations[0]
         
-        # Set default ratio if not provided
+        # Determine best aspect ratio if not provided
         if not ratio:
-            ratio = self.model_constraints["ratios"][0]
+            # Load image to get dimensions for aspect ratio detection
+            with Image.open(image_path) as img:
+                ratio = self._determine_best_aspect_ratio(img.width, img.height)
         elif ratio not in self.model_constraints["ratios"]:
             valid_ratios = self.model_constraints["ratios"]
             logger.warning(f"Ratio {ratio} not supported for {self.model}. Using {valid_ratios[0]}")
             ratio = valid_ratios[0]
         
-        # Upload image to get URL (Runway requires image URLs)
-        image_url = await self._upload_image(image_path)
+        # Process image to match target dimensions
+        processed_image_path = self._resize_and_pad_image(image_path, ratio)
         
-        # Generate video using Runway SDK
-        result = await self._generate_with_runway(prompt, image_url, duration, ratio)
+        # Upload processed image to get URL (Runway requires image URLs)
+        image_url = await self._upload_image(processed_image_path)
         
-        # Download video if output path provided
-        if output_path and result.get("video_url"):
-            saved_path = await self._download_video(result["video_url"], output_path)
-            result["video_path"] = str(saved_path)
-            logger.info(f"Video saved to: {saved_path}")
-        
-        result.update({
-            "model": self.model,
-            "prompt": prompt,
-            "image_path": str(image_path),
-            "duration": duration,
-            "ratio": ratio
-        })
-        
-        return result
+        try:
+            # Generate video using Runway SDK
+            result = await self._generate_with_runway(prompt, image_url, duration, ratio)
+            
+            # Download video if output path provided
+            if output_path and result.get("video_url"):
+                saved_path = await self._download_video(result["video_url"], output_path)
+                result["video_path"] = str(saved_path)
+                logger.info(f"Video saved to: {saved_path}")
+            
+            result.update({
+                "model": self.model,
+                "prompt": prompt,
+                "image_path": str(image_path),
+                "processed_image_path": str(processed_image_path),
+                "duration": duration,
+                "ratio": ratio
+            })
+            
+            return result
+            
+        finally:
+            # Clean up temporary processed image
+            try:
+                if processed_image_path.exists():
+                    processed_image_path.unlink()
+                    logger.debug(f"Cleaned up processed image: {processed_image_path}")
+            except Exception as e:
+                logger.warning(f"Failed to clean up processed image: {e}")
     
     async def _upload_image(self, image_path: Union[str, Path]) -> str:
         """
