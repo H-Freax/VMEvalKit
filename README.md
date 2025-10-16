@@ -178,7 +178,71 @@ VMEvalKit supports 36+ models across 9 providers and is designed to easily accom
 
 Both API-based and open-source (submodule) integration patterns are supported.
 
-## Experiment. 
+## Running Experiments
+
+### Quick Start
+
+Generate dataset and run experiments:
+
+```bash
+cd /Users/access/VMEvalKit
+source venv/bin/activate
+
+# Generate dataset (if needed)
+python -m vmevalkit.runner.create_dataset --pairs-per-domain 15
+
+# Run experiment (1 task per domain for testing)
+python examples/experiment_2025-10-14.py
+
+# Run all tasks
+python examples/experiment_2025-10-14.py --all-tasks
+```
+
+### Resume Mechanism
+
+The experiment script includes robust resume capability for long-running experiments:
+
+**Features:**
+- ⚡ Automatic checkpointing every 5 completed jobs
+- 🛡️ Graceful interruption handling (Ctrl+C saves progress)
+- 📥 Resume from latest or specific experiment
+- 📊 Track completed, failed, and in-progress jobs
+
+**Usage:**
+
+```bash
+# Resume latest interrupted experiment
+python examples/experiment_2025-10-14.py --resume latest
+
+# Resume specific experiment
+python examples/experiment_2025-10-14.py --resume experiment_20241016_143022
+
+# List available checkpoints
+python examples/experiment_2025-10-14.py --list-checkpoints
+
+# Start with custom experiment ID
+python examples/experiment_2025-10-14.py --experiment-id my_test_001
+
+# Run with more parallel workers
+python examples/experiment_2025-10-14.py --workers 10
+```
+
+**Command Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--resume <ID or 'latest'>` | Resume a previous experiment |
+| `--no-resume` | Disable resume mechanism |
+| `--experiment-id <ID>` | Set custom experiment ID |
+| `--workers <N>` | Number of parallel workers (default: 6) |
+| `--all-tasks` | Run all tasks instead of 1 per domain |
+| `--list-checkpoints` | List available checkpoints |
+
+**How It Works:**
+- Progress saved to `data/outputs/pilot_experiment/logs/checkpoint_*.json`
+- Completed jobs won't be re-run on resume
+- Failed jobs can be retried
+- Interrupted jobs are automatically retried
 
 ## License
 
