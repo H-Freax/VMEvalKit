@@ -437,7 +437,7 @@ def run_pilot_experiment(
                 # Check inside mirrored domain/task folder for existing runs
                 run_id_pattern = f"{model_name}_{task_id}_*"
                 domain_dir_name = f"{domain}_task"
-                task_folder = (output_dir / model_name / domain_dir_name / task_id)
+                task_folder = model_output_dir / domain_dir_name / task_id
                 existing_dirs = list(task_folder.glob(run_id_pattern))
                 
                 if skip_existing and existing_dirs:
@@ -453,7 +453,7 @@ def run_pilot_experiment(
                     model_name=model_name,
                     task=task,
                     category=domain,
-                    output_dir=output_dir,
+                    output_dir=model_output_dir,  # Use model-specific output dir
                     runner=runner
                 )
                 
