@@ -14,7 +14,7 @@ from typing import Dict, List, Any, Optional
 # Initialize Flask app
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'vmevalkit-dashboard-secret-key'
-app.config['OUTPUT_DIR'] = Path(__file__).parent.parent / 'data' / 'outputs'
+app.config['OUTPUT_DIR'] = Path(__file__).parent.parent / 'data' / 'outputs' / 'pilot_experiment'
 app.config['JSON_SORT_KEYS'] = False
 
 # Import data loader utilities
@@ -23,44 +23,43 @@ from utils.data_loader import (
     get_model_statistics,
     get_domain_statistics,
     get_inference_details,
-    get_comparison_data
+    get_comparison_data,
+    get_hierarchical_data
 )
 
 
 @app.route('/')
 def index():
-    """Main dashboard page showing overview of all results."""
+    """Main dashboard page showing hierarchical view: Models → Domains → Tasks."""
     try:
         # Scan all outputs
         all_results = scan_all_outputs(app.config['OUTPUT_DIR'])
         
-        # Get statistics
-        model_stats = get_model_statistics(all_results)
-        domain_stats = get_domain_statistics(all_results)
+        # Get hierarchical organization
+        hierarchy = get_hierarchical_data(all_results)
         
         # Calculate overview stats
         total_inferences = len(all_results)
-        total_models = len(model_stats)
-        total_domains = len(domain_stats)
-        success_count = sum(1 for r in all_results if r.get('success', False))
-        success_rate = (success_count / total_inferences * 100) if total_inferences > 0 else 0
+        total_models = len(hierarchy)
+        all_domains = set()
+        for model_domains in hierarchy.values():
+            all_domains.update(model_domains.keys())
+        total_domains = len(all_domains)
         
         overview = {
             'total_inferences': total_inferences,
             'total_models': total_models,
-            'total_domains': total_domains,
-            'success_count': success_count,
-            'success_rate': round(success_rate, 1)
+            'total_domains': total_domains
         }
         
         return render_template(
             'index.html',
             overview=overview,
-            model_stats=model_stats,
-            domain_stats=domain_stats,
-            recent_results=all_results[:20]  # Show 20 most recent
+            hierarchy=hierarchy
         )
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return render_template('error.html', error=str(e)), 500
 
 

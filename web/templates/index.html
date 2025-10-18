@@ -4,164 +4,125 @@
 
 {% block content %}
 <div class="page-header">
-    <h1>📊 VMEvalKit Results Dashboard</h1>
-    <p class="subtitle">Video Reasoning Evaluation Results</p>
+    <h1>VMEvalKit Results</h1>
+    <p class="subtitle">{{ overview.total_models }} models · {{ overview.total_domains }} domains · {{ overview.total_inferences }} inferences</p>
 </div>
 
-<!-- Overview Statistics -->
-<div class="stats-grid">
-    <div class="stat-card">
-        <div class="stat-icon">🎬</div>
-        <div class="stat-value">{{ overview.total_inferences }}</div>
-        <div class="stat-label">Total Inferences</div>
+<!-- Hierarchical View: Models → Domains → Tasks -->
+{% for model, domains in hierarchy.items() %}
+<section class="model-section">
+    <div class="model-header" onclick="toggleSection('model-{{ loop.index }}')">
+        <h2>
+            <span class="expand-icon" id="icon-model-{{ loop.index }}">▼</span>
+            🤖 {{ model }}
+            <span class="badge">{{ domains.values()|map('length')|sum }} tasks</span>
+        </h2>
     </div>
-    <div class="stat-card">
-        <div class="stat-icon">🤖</div>
-        <div class="stat-value">{{ overview.total_models }}</div>
-        <div class="stat-label">Models Tested</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-icon">🧠</div>
-        <div class="stat-value">{{ overview.total_domains }}</div>
-        <div class="stat-label">Reasoning Domains</div>
-    </div>
-    <div class="stat-card {% if overview.success_rate >= 80 %}success{% elif overview.success_rate >= 50 %}warning{% else %}danger{% endif %}">
-        <div class="stat-icon">✅</div>
-        <div class="stat-value">{{ overview.success_rate }}%</div>
-        <div class="stat-label">Success Rate</div>
-    </div>
-</div>
-
-<!-- Models Section -->
-<section class="section">
-    <h2>🤖 Model Performance</h2>
-    <div class="table-container">
-        <table class="results-table">
-            <thead>
-                <tr>
-                    <th>Model</th>
-                    <th>Total</th>
-                    <th>✅ Success</th>
-                    <th>❌ Failed</th>
-                    <th>Success Rate</th>
-                    <th>Avg Duration</th>
-                    <th>Domains</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for model, stats in model_stats.items() %}
-                <tr>
-                    <td><strong>{{ model }}</strong></td>
-                    <td>{{ stats.total }}</td>
-                    <td class="success-text">{{ stats.success }}</td>
-                    <td class="danger-text">{{ stats.failed }}</td>
-                    <td>
-                        <div class="progress-bar">
-                            <div class="progress-fill {% if stats.success_rate >= 80 %}success{% elif stats.success_rate >= 50 %}warning{% else %}danger{% endif %}" 
-                                 style="width: {{ stats.success_rate }}%"></div>
-                        </div>
-                        <span class="progress-label">{{ stats.success_rate|round(1) }}%</span>
-                    </td>
-                    <td>{{ stats.avg_duration|duration_format }}</td>
-                    <td>{{ stats.domains|length }}</td>
-                    <td>
-                        <a href="/model/{{ model }}" class="btn btn-sm">View Details</a>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</section>
-
-<!-- Domains Section -->
-<section class="section">
-    <h2>🧠 Reasoning Domains</h2>
-    <div class="domain-grid">
-        {% for domain, stats in domain_stats.items() %}
-        <div class="domain-card">
-            <div class="domain-header">
+    
+    <div class="model-content" id="model-{{ loop.index }}" style="display: block;">
+        {% for domain, tasks in domains.items() %}
+        <div class="domain-section">
+            <div class="domain-header" onclick="toggleSection('domain-{{ loop.index0 }}-{{ loop.index }}')">
                 <h3>
+                    <span class="expand-icon" id="icon-domain-{{ loop.index0 }}-{{ loop.index }}">▼</span>
                     {% if domain == 'chess' %}♟️{% elif domain == 'maze' %}🌀{% elif domain == 'raven' %}🧩{% elif domain == 'rotation' %}🔄{% elif domain == 'sudoku' %}🔢{% else %}📝{% endif %}
                     {{ domain|title }}
+                    <span class="badge">{{ tasks|length }} tasks</span>
                 </h3>
             </div>
-            <div class="domain-stats">
-                <div class="stat-row">
-                    <span class="stat-label">Total:</span>
-                    <span class="stat-value">{{ stats.total }}</span>
+            
+            <div class="domain-content" id="domain-{{ loop.index0 }}-{{ loop.index }}" style="display: block;">
+                <div class="tasks-grid">
+                    {% for task in tasks %}
+                    <div class="task-card">
+                        <!-- Task Header -->
+                        <div class="task-header">
+                            <span class="task-id">{{ task.task_id }}</span>
+                        </div>
+                        
+                        <!-- Input Image -->
+                        {% if task.first_frame %}
+                        <div class="task-image-section">
+                            <h4>Input Image</h4>
+                            <img src="/image/{{ task.first_frame.replace(config.OUTPUT_DIR|string, '').lstrip('/') }}" 
+                                 alt="Input" class="task-image" loading="lazy">
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Prompt -->
+                        {% if task.prompt %}
+                        <div class="task-prompt-section">
+                            <h4>Prompt</h4>
+                            <p class="task-prompt">{{ task.prompt }}</p>
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Output Video -->
+                        {% if task.video_path %}
+                        <div class="task-video-section">
+                            <h4>Generated Video</h4>
+                            <video controls preload="none" class="task-video" loading="lazy">
+                                <source src="/video/{{ task.video_path.replace(config.OUTPUT_DIR|string, '').lstrip('/') }}" type="video/mp4">
+                                Your browser does not support video playback.
+                            </video>
+                        </div>
+                        {% endif %}
+                        
+                    </div>
+                    {% endfor %}
                 </div>
-                <div class="stat-row">
-                    <span class="stat-label">Success:</span>
-                    <span class="stat-value success-text">{{ stats.success }}</span>
-                </div>
-                <div class="stat-row">
-                    <span class="stat-label">Success Rate:</span>
-                    <span class="stat-value">{{ stats.success_rate|round(1) }}%</span>
-                </div>
-                <div class="stat-row">
-                    <span class="stat-label">Models:</span>
-                    <span class="stat-value">{{ stats.models|length }}</span>
-                </div>
-            </div>
-            <div class="domain-footer">
-                <a href="/domain/{{ domain }}" class="btn btn-block">View Results</a>
             </div>
         </div>
         {% endfor %}
     </div>
 </section>
+{% endfor %}
 
-<!-- Recent Results Section -->
-{% if recent_results %}
-<section class="section">
-    <h2>📅 Recent Results</h2>
-    <div class="results-grid">
-        {% for result in recent_results[:12] %}
-        <div class="result-card {% if not result.success %}failed{% endif %}">
-            <div class="result-header">
-                <span class="badge">{{ result.model }}</span>
-                <span class="status-badge {% if result.success %}success{% else %}danger{% endif %}">
-                    {% if result.success %}✅{% else %}❌{% endif %}
-                </span>
-            </div>
-            {% if result.video_path and result.success %}
-            <div class="result-video">
-                <video controls preload="metadata" poster="{{ url_for('serve_image', image_path=result.first_frame) if result.first_frame else '' }}">
-                    <source src="{{ url_for('serve_video', video_path=result.video_path.replace(config.OUTPUT_DIR|string + '/', '')) }}" type="video/mp4">
-                    Your browser does not support video playback.
-                </video>
-            </div>
-            {% elif result.first_frame %}
-            <div class="result-image">
-                <img src="{{ url_for('serve_image', image_path=result.first_frame.replace(config.OUTPUT_DIR|string + '/', '')) }}" alt="First frame">
-            </div>
-            {% endif %}
-            <div class="result-body">
-                <div class="result-meta">
-                    <span class="meta-item">
-                        <span class="meta-label">Domain:</span>
-                        <span class="meta-value">{{ result.domain|title }}</span>
-                    </span>
-                    <span class="meta-item">
-                        <span class="meta-label">Task:</span>
-                        <span class="meta-value">{{ result.task_id }}</span>
-                    </span>
-                </div>
-                {% if result.prompt %}
-                <p class="result-prompt">{{ result.prompt[:100] }}{% if result.prompt|length > 100 %}...{% endif %}</p>
-                {% endif %}
-                <div class="result-footer">
-                    <span class="timestamp">{{ result.timestamp|datetime_format('%Y-%m-%d %H:%M') }}</span>
-                    <a href="/task/{{ result.task_id }}" class="btn btn-sm">View Task</a>
-                </div>
-            </div>
-        </div>
-        {% endfor %}
-    </div>
-</section>
+{% if not hierarchy %}
+<div class="empty-state">
+    <div class="empty-icon">📭</div>
+    <h2>No Results Found</h2>
+    <p>Run some experiments first to see results here!</p>
+    <pre>python examples/experiment_2025-10-14.py</pre>
+</div>
 {% endif %}
 
-{% endblock %}
+<script>
+function toggleSection(sectionId) {
+    const section = document.getElementById(sectionId);
+    const icon = document.getElementById('icon-' + sectionId);
+    
+    if (section.style.display === 'none') {
+        section.style.display = 'block';
+        icon.textContent = '▼';
+    } else {
+        section.style.display = 'none';
+        icon.textContent = '▶';
+    }
+}
 
+// Lazy load videos as they come into view
+document.addEventListener('DOMContentLoaded', function() {
+    if ('IntersectionObserver' in window) {
+        const videoObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const video = entry.target;
+                    if (video.preload === 'none') {
+                        video.preload = 'metadata';
+                    }
+                    videoObserver.unobserve(video);
+                }
+            });
+        }, {
+            rootMargin: '100px'
+        });
+        
+        document.querySelectorAll('video[preload="none"]').forEach(video => {
+            videoObserver.observe(video);
+        });
+    }
+});
+</script>
+
+{% endblock %}

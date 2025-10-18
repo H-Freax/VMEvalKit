@@ -1,6 +1,6 @@
 """
 Data loader utilities for VMEvalKit web dashboard.
-Scans and parses the structured output folders.
+Scans folders and reads prompt.txt files ONLY - NO JSON.
 """
 
 import json
@@ -11,10 +11,12 @@ from datetime import datetime
 
 def scan_all_outputs(output_dir: Path) -> List[Dict[str, Any]]:
     """
-    Scan all output folders and collect inference results.
+    Scan output folders - NO JSON reading.
+    
+    Structure: output_dir/{model}/{domain}_task/{task_id}/{run_id}/
     
     Args:
-        output_dir: Base output directory (data/outputs)
+        output_dir: Base output directory
         
     Returns:
         List of inference result dictionaries
@@ -22,10 +24,10 @@ def scan_all_outputs(output_dir: Path) -> List[Dict[str, Any]]:
     results = []
     
     if not output_dir.exists():
+        print(f"Warning: Output directory does not exist: {output_dir}")
         return results
     
-    # Walk through the output directory structure
-    # Structure: output_dir/{model}/{domain}_task/{task_id}/{run_id}/
+    # Scan: {model}/{domain}_task/{task_id}/{run_id}/
     for model_dir in output_dir.iterdir():
         if not model_dir.is_dir():
             continue
@@ -55,89 +57,87 @@ def scan_all_outputs(output_dir: Path) -> List[Dict[str, Any]]:
                     if not run_dir.is_dir():
                         continue
                     
-                    # Load metadata
-                    metadata_file = run_dir / 'metadata.json'
-                    if metadata_file.exists():
-                        result = load_inference_metadata(run_dir, metadata_file)
-                        if result:
-                            result['model'] = model_name
-                            result['domain'] = domain
-                            result['task_id'] = task_id
-                            result['run_id'] = run_dir.name
-                            result['inference_dir'] = str(run_dir)
-                            results.append(result)
+                    # Load data from filesystem only
+                    result = load_from_filesystem(run_dir, model_name, domain, task_id)
+                    if result:
+                        results.append(result)
     
-    # Sort by timestamp (most recent first)
+    # Sort by folder modification time (most recent first)
     results.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
     
+    print(f"Found {len(results)} inference results")
     return results
 
 
-def load_inference_metadata(run_dir: Path, metadata_file: Path) -> Optional[Dict[str, Any]]:
+def load_from_filesystem(run_dir: Path, model_name: str, domain: str, task_id: str) -> Optional[Dict[str, Any]]:
     """
-    Load metadata from a single inference folder.
+    Load data from filesystem ONLY - no JSON reading.
+    
+    Reads:
+    - Folder names for model/domain/task
+    - prompt.txt for prompt text
+    - *.png files for images
+    - *.mp4 files for videos
     
     Args:
-        run_dir: Path to the inference run directory
-        metadata_file: Path to the metadata.json file
+        run_dir: Path to the run directory
+        model_name: Model name from folder
+        domain: Domain from folder
+        task_id: Task ID from folder
         
     Returns:
-        Dictionary with inference metadata
+        Dictionary with inference data
     """
     try:
-        with open(metadata_file, 'r') as f:
-            metadata = json.load(f)
+        # Read prompt from prompt.txt
+        prompt = ""
+        prompt_file = run_dir / 'question' / 'prompt.txt'
+        if prompt_file.exists():
+            with open(prompt_file, 'r') as f:
+                prompt = f.read().strip()
         
-        # Extract key information
-        inference_info = metadata.get('inference', {})
-        input_info = metadata.get('input', {})
-        output_info = metadata.get('output', {})
-        question_data = metadata.get('question_data', {})
+        # Find first frame image
+        first_frame = None
+        question_dir = run_dir / 'question'
+        if question_dir.exists():
+            first_frame_file = question_dir / 'first_frame.png'
+            if first_frame_file.exists():
+                first_frame = str(first_frame_file)
+        
+        # Find final frame image
+        final_frame = None
+        if question_dir.exists():
+            final_frame_file = question_dir / 'final_frame.png'
+            if final_frame_file.exists():
+                final_frame = str(final_frame_file)
         
         # Find video file
-        video_dir = run_dir / 'video'
         video_path = None
+        video_dir = run_dir / 'video'
         if video_dir.exists():
             video_files = list(video_dir.glob('*.mp4')) + list(video_dir.glob('*.webm'))
             if video_files:
                 video_path = str(video_files[0])
         
-        # Find question images
-        question_dir = run_dir / 'question'
-        first_frame = None
-        final_frame = None
-        prompt = None
-        
-        if question_dir.exists():
-            first_frame_file = question_dir / 'first_frame.png'
-            final_frame_file = question_dir / 'final_frame.png'
-            prompt_file = question_dir / 'prompt.txt'
-            
-            if first_frame_file.exists():
-                first_frame = str(first_frame_file)
-            if final_frame_file.exists():
-                final_frame = str(final_frame_file)
-            if prompt_file.exists():
-                with open(prompt_file, 'r') as f:
-                    prompt = f.read().strip()
+        # Get timestamp from folder modification time
+        timestamp = datetime.fromtimestamp(run_dir.stat().st_mtime).isoformat()
         
         return {
-            'run_id': inference_info.get('run_id'),
-            'model': inference_info.get('model'),
-            'timestamp': inference_info.get('timestamp'),
-            'status': inference_info.get('status'),
-            'success': inference_info.get('status') == 'success',
-            'duration_seconds': inference_info.get('duration_seconds'),
-            'error': inference_info.get('error'),
-            'prompt': prompt or input_info.get('prompt'),
-            'video_path': video_path or output_info.get('video_path'),
+            'run_id': run_dir.name,
+            'model': model_name,
+            'domain': domain,
+            'task_id': task_id,
+            'timestamp': timestamp,
+            'prompt': prompt,
+            'video_path': video_path,
             'first_frame': first_frame,
             'final_frame': final_frame,
-            'question_metadata': question_data,
-            'full_metadata': metadata
+            'inference_dir': str(run_dir)
         }
     except Exception as e:
-        print(f"Error loading metadata from {metadata_file}: {e}")
+        print(f"Error loading from {run_dir}: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 
@@ -158,31 +158,18 @@ def get_model_statistics(results: List[Dict[str, Any]]) -> Dict[str, Dict[str, A
         if model not in model_stats:
             model_stats[model] = {
                 'total': 0,
-                'success': 0,
-                'failed': 0,
-                'total_duration': 0,
                 'domains': set()
             }
         
         model_stats[model]['total'] += 1
-        if result.get('success', False):
-            model_stats[model]['success'] += 1
-        else:
-            model_stats[model]['failed'] += 1
-        
-        duration = result.get('duration_seconds', 0)
-        if duration:
-            model_stats[model]['total_duration'] += duration
         
         domain = result.get('domain')
         if domain:
             model_stats[model]['domains'].add(domain)
     
-    # Calculate derived statistics
+    # Convert sets to lists
     for model, stats in model_stats.items():
-        stats['success_rate'] = (stats['success'] / stats['total'] * 100) if stats['total'] > 0 else 0
-        stats['avg_duration'] = stats['total_duration'] / stats['total'] if stats['total'] > 0 else 0
-        stats['domains'] = list(stats['domains'])  # Convert set to list for JSON serialization
+        stats['domains'] = list(stats['domains'])
     
     return model_stats
 
@@ -204,27 +191,52 @@ def get_domain_statistics(results: List[Dict[str, Any]]) -> Dict[str, Dict[str, 
         if domain not in domain_stats:
             domain_stats[domain] = {
                 'total': 0,
-                'success': 0,
-                'failed': 0,
                 'models': set()
             }
         
         domain_stats[domain]['total'] += 1
-        if result.get('success', False):
-            domain_stats[domain]['success'] += 1
-        else:
-            domain_stats[domain]['failed'] += 1
         
         model = result.get('model')
         if model:
             domain_stats[domain]['models'].add(model)
     
-    # Calculate derived statistics
+    # Convert sets to lists
     for domain, stats in domain_stats.items():
-        stats['success_rate'] = (stats['success'] / stats['total'] * 100) if stats['total'] > 0 else 0
-        stats['models'] = list(stats['models'])  # Convert set to list
+        stats['models'] = list(stats['models'])
     
     return domain_stats
+
+
+def get_hierarchical_data(results: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Organize results hierarchically: Models → Domains → Tasks
+    
+    Args:
+        results: List of inference results
+        
+    Returns:
+        Nested dictionary: {model: {domain: [tasks]}}
+    """
+    hierarchy = {}
+    
+    for result in results:
+        model = result.get('model', 'unknown')
+        domain = result.get('domain', 'unknown')
+        
+        if model not in hierarchy:
+            hierarchy[model] = {}
+        
+        if domain not in hierarchy[model]:
+            hierarchy[model][domain] = []
+        
+        hierarchy[model][domain].append(result)
+    
+    # Sort tasks within each domain by task_id
+    for model in hierarchy:
+        for domain in hierarchy[model]:
+            hierarchy[model][domain].sort(key=lambda x: x.get('task_id', ''))
+    
+    return hierarchy
 
 
 def get_inference_details(output_dir: Path, inference_id: str) -> Optional[Dict[str, Any]]:
@@ -239,12 +251,19 @@ def get_inference_details(output_dir: Path, inference_id: str) -> Optional[Dict[
         Dictionary with detailed inference information
     """
     inference_path = output_dir / inference_id
-    metadata_file = inference_path / 'metadata.json'
     
-    if not metadata_file.exists():
+    if not inference_path.exists():
         return None
     
-    return load_inference_metadata(inference_path, metadata_file)
+    # Extract model/domain/task from path
+    parts = inference_id.split('/')
+    if len(parts) >= 3:
+        model = parts[0]
+        domain = parts[1].replace('_task', '')
+        task_id = parts[2]
+        return load_from_filesystem(inference_path, model, domain, task_id)
+    
+    return None
 
 
 def get_comparison_data(results: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -268,8 +287,6 @@ def get_comparison_data(results: List[Dict[str, Any]]) -> Dict[str, Any]:
             task_model_grid[task_id] = {}
         
         task_model_grid[task_id][model] = {
-            'success': result.get('success', False),
-            'duration': result.get('duration_seconds', 0),
             'video_path': result.get('video_path'),
             'inference_dir': result.get('inference_dir')
         }
@@ -283,4 +300,3 @@ def get_comparison_data(results: List[Dict[str, Any]]) -> Dict[str, Any]:
         'models': all_models,
         'tasks': all_tasks
     }
-
