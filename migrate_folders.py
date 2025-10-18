@@ -33,17 +33,23 @@ def extract_model_and_task_info(folder_name: str, metadata: Dict[str, Any]) -> O
     
     # Try to extract model name from folder name
     # Pattern: {model_name}_{task_id}_{timestamp}
-    parts = folder_name.split("_")
+    # The model name should match the inference metadata
+    model_name = metadata.get("inference", {}).get("model")
     
-    # For openai-sora-2, the model name is the first 3 parts
-    if folder_name.startswith("openai-sora-"):
-        model_name = "_".join(parts[:3])  # openai-sora-2
-        if not task_id and len(parts) > 3:
-            # Extract task_id from remaining parts (before timestamp)
-            task_id = "_".join(parts[3:-2]) if len(parts) > 5 else parts[3]
-    else:
-        # For other models, assume model name is first part before task_id
-        model_name = parts[0]
+    # If model is "sora-2" from metadata, convert to full model name
+    if model_name == "sora-2":
+        model_name = "openai-sora-2"
+    elif model_name == "sora-2-pro":
+        model_name = "openai-sora-2-pro"
+    
+    # If we still don't have model_name, try to extract from folder
+    if not model_name:
+        parts = folder_name.split("_")
+        if folder_name.startswith("openai-sora-"):
+            model_name = "_".join(parts[:3])  # openai-sora-2
+        else:
+            # For other models, assume model name is first part before task_id
+            model_name = parts[0]
     
     if not domain or not task_id:
         print(f"  ⚠️  Warning: Could not extract full info from {folder_name}")
@@ -178,6 +184,11 @@ def main():
         default="data/outputs/pilot_experiment",
         help="Base output directory (default: data/outputs/pilot_experiment)"
     )
+    parser.add_argument(
+        "--yes", "-y",
+        action="store_true",
+        help="Skip confirmation prompts"
+    )
     args = parser.parse_args()
     
     output_base = Path(args.output_dir)
@@ -194,10 +205,43 @@ def main():
     
     # Find all flat folders (those with timestamps directly in pilot_experiment/)
     flat_folders = []
+    empty_folders = []
+    
     for item in output_base.iterdir():
         if item.is_dir() and "_20" in item.name:
+            # Check if folder is empty or has no video files
+            metadata_file = item / "metadata.json"
+            video_dir = item / "video"
+            
+            if not metadata_file.exists():
+                # Check if it's empty
+                has_videos = False
+                if video_dir.exists():
+                    video_files = list(video_dir.glob("*.mp4")) + list(video_dir.glob("*.webm"))
+                    has_videos = len(video_files) > 0
+                
+                if not has_videos:
+                    empty_folders.append(item)
+                    continue
+            
             # Likely a timestamped folder at wrong level
             flat_folders.append(item)
+    
+    # Handle empty folders first
+    if empty_folders:
+        print(f"\n🗑️  Found {len(empty_folders)} empty/failed folder(s):\n")
+        for folder in sorted(empty_folders):
+            print(f"  - {folder.name}")
+        
+        if args.dry_run:
+            print("\n  🔍 [DRY RUN] Would delete these empty folders")
+        else:
+            response = input("\n⚠️  Delete empty folders? [y/N]: ")
+            if response.lower() == 'y':
+                for folder in empty_folders:
+                    shutil.rmtree(folder)
+                    print(f"  🗑️  Deleted: {folder.name}")
+                print(f"\n✅ Deleted {len(empty_folders)} empty folder(s)")
     
     if not flat_folders:
         print("\n✅ No flat folders found to migrate!")
