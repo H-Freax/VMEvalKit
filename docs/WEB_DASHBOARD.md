@@ -113,12 +113,16 @@ curl http://localhost:5000/api/results?model=luma-ray-2&domain=chess
   "total": 15,
   "results": [
     {
-      "run_id": "luma-ray-2_chess_0001_...",
-      "model": "luma-ray-2",
+      "run_id": "wavespeed-wan-2.2-i2v-720p_chess_0001_20251017_071644",
+      "model": "wavespeed-wan-2.2-i2v-720p",
       "domain": "chess",
       "task_id": "chess_0001",
-      "video_path": "...",
-      "timestamp": "2025-10-18T..."
+      "timestamp": "2024-10-17T07:16:44",
+      "prompt": "Show the next chess move...",
+      "video_path": "/path/to/video.mp4",
+      "first_frame": "/path/to/input.png",
+      "final_frame": "/path/to/output.png",
+      "inference_dir": "/path/to/run/directory"
     }
   ]
 }
@@ -167,25 +171,24 @@ No environment variables required - the dashboard uses relative paths to find th
 
 ## Design
 
-### Modern Dark Theme
+### Clean Apple-Style Theme
 
 - **Color Palette**:
-  - Primary: Blue (#2563eb)
-  - Secondary: Purple (#7c3aed)
-  - Success: Green (#10b981)
-  - Warning: Orange (#f59e0b)
-  - Danger: Red (#ef4444)
+  - Background: Light gray (#f5f5f7)
+  - Text: Dark (#1d1d1f)
+  - Accent: System blue
+  - Borders: Subtle gray
   
-- **Layout**: Responsive grid system
-- **Typography**: System fonts for fast loading
-- **Icons**: Emoji for universal support
-- **Animations**: Smooth transitions and hover effects
+- **Layout**: Clean hierarchical sections with collapsible panels
+- **Typography**: System fonts (-apple-system, BlinkMacSystemFont)
+- **Icons**: Emoji for universal support (♠️, 🌀, 🧩, 🔄, 🔢)
+- **Interactions**: Click-to-expand sections, click-to-play videos
 
 ### Responsive Design
 
-- Desktop: Multi-column grids
+- Desktop: Full hierarchical view with side-by-side content
 - Tablet: Adaptive layouts
-- Mobile: Single-column stacks
+- Mobile: Single-column responsive design
 
 ## Browser Support
 
@@ -196,10 +199,12 @@ No environment variables required - the dashboard uses relative paths to find th
 
 ## Performance
 
-- Lazy loading for videos
-- Metadata caching
-- Efficient directory scanning
-- Progressive loading
+- Lazy loading for videos (only load when sections expand)
+- Videos initially set to `preload="none"`
+- Upgraded to `preload="metadata"` when sections expand
+- IntersectionObserver for enhanced loading when videos approach viewport
+- Efficient directory scanning with deduplication
+- LRU cache for scan results
 
 ## Troubleshooting
 
@@ -223,7 +228,7 @@ app.run(debug=True, host='0.0.0.0', port=5001)
    ```bash
    python examples/experiment_2025-10-14.py
    ```
-2. Verify outputs exist in `data/outputs/`
+2. Verify outputs exist in `data/outputs/pilot_experiment/`
 
 ## Development
 
@@ -237,7 +242,7 @@ app.run(debug=True, host='0.0.0.0', port=5001)
    ```
 
 2. Create template in `templates/myview.html`
-3. Add navigation link in `templates/base.html`
+3. Update the dashboard accordingly
 
 ### Styling
 
@@ -246,20 +251,25 @@ All styles are in `static/css/style.css` using CSS variables for easy theming.
 ### JavaScript
 
 Interactive features in `static/js/main.js`:
-- Video player enhancements
-- Lazy loading
-- Search/filter
-- Keyboard shortcuts
+- Video player controls (click to play/pause)
+- Lazy loading with IntersectionObserver
+- Accessibility features (keyboard navigation, ARIA)
+- Progress bar animations
+- Error handling for failed video loads
+- Notification system
+- Keyboard shortcuts (Ctrl/Cmd+K for search, Escape to clear)
 
 ## Future Enhancements
 
-- [ ] Real-time updates via WebSocket
+- [ ] Model-specific views (`/model/<model_name>`)
+- [ ] Domain-specific views (`/domain/<domain_name>`)
+- [ ] Task comparison views (`/task/<task_id>`)
+- [ ] Side-by-side comparison matrix
+- [ ] Statistics API endpoint
+- [ ] Success/failure tracking
+- [ ] Generation duration metrics
 - [ ] Advanced filtering and search
-- [ ] Export to CSV/JSON
-- [ ] Video quality metrics
-- [ ] User authentication
-- [ ] Docker containerization
-- [ ] Caching layer for performance
+- [ ] Export functionality
 
 ## Integration with VMEvalKit
 
@@ -268,7 +278,7 @@ The dashboard is a standalone app but tightly integrated:
 1. **Data Flow**: Reads from VMEvalKit's structured output folders
 2. **No Modification**: Doesn't modify any experiment data
 3. **Real-time**: Reflects latest experiments automatically
-4. **Metadata**: Uses VMEvalKit's metadata format
+4. **Filesystem-based**: Reads prompt.txt and finds video/image files directly
 
 ## Contributing
 
