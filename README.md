@@ -141,7 +141,7 @@ output/<model>_<question_id>_<timestamp>/
 
 This structure ensures reproducibility and makes batch analysis easy.
 
-## Web Dashboard 🎨
+## Web Dashboard 🎨  
 
 Visualize your results with the built-in web dashboard:
 
