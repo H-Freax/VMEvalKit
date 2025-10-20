@@ -16,11 +16,20 @@ Interactive web interface for human annotation of generated videos.
 
 **Usage:**
 ```bash
-# Run human evaluation interface
-python -m vmevalkit.runner.evaluate human --annotator "Your Name" --port 7860
+# Run human evaluation interface (all models, all tasks)
+python examples/run_evaluation.py human
+
+# With custom annotator
+python examples/run_evaluation.py human --annotator "Your Name"
+
+# Filter to specific models
+python examples/run_evaluation.py human --models luma-ray-2
+
+# Filter to specific task types
+python examples/run_evaluation.py human --task-types chess_task maze_task
 
 # With public share link
-python -m vmevalkit.runner.evaluate human --annotator "Your Name" --share
+python examples/run_evaluation.py human --share
 ```
 
 ### 2. GPT-4O Evaluator
@@ -35,15 +44,22 @@ Automatic evaluation using OpenAI's GPT-4O vision model.
 
 **Usage:**
 ```bash
-# Evaluate all models
-python -m vmevalkit.runner.evaluate gpt4o
+# Evaluate all models and tasks  
+python examples/run_evaluation.py gpt4o
 
 # Evaluate specific models
-python -m vmevalkit.runner.evaluate gpt4o --models luma-ray-2 openai-sora-2
+python examples/run_evaluation.py gpt4o --models luma-ray-2 openai-sora-2
 
-# Custom settings
-python -m vmevalkit.runner.evaluate gpt4o --max-frames 16 --temperature 0.2
+# Evaluate specific task types
+python examples/run_evaluation.py gpt4o --task-types chess_task
+
+# Evaluate specific task IDs  
+python examples/run_evaluation.py gpt4o --task-ids chess_0001 maze_0005
 ```
+
+**Resume Capability:** Automatically skips already evaluated tasks - safe to re-run.
+
+Note: Set `OPENAI_API_KEY` environment variable before running.
 
 **Requirements:**
 - Set `OPENAI_API_KEY` environment variable
@@ -51,12 +67,14 @@ python -m vmevalkit.runner.evaluate gpt4o --max-frames 16 --temperature 0.2
 
 ## Evaluation Criteria
 
-Both evaluators focus on a single criterion:
+Both evaluators use a 1-5 scale for solution correctness:
 
-**Solution Correctness**: 
-- **Correct**: The solution is fully correct
-- **Incorrect**: The solution is wrong  
-- **Partially Correct**: The solution has some correct elements but is not fully correct
+**Solution Correctness Score**: 
+- **1**: Completely wrong solution
+- **2**: Mostly incorrect with minor correct elements
+- **3**: Partially correct (about half correct)
+- **4**: Mostly correct with minor errors
+- **5**: Perfect solution
 
 ## Output Structure
 
@@ -70,9 +88,11 @@ data/evaluations/
 │   │   │   │   ├── human-eval.json
 │   │   │   │   └── gpt-4o-eval.json
 │   │   │   └── ...
-│   │   └── <evaluator>_summary.json
-│   └── <evaluator>_all_models.json
+│   │   └── ...
+│   └── ...
 ```
+
+Each `*-eval.json` file contains individual evaluation results with metadata. Summary statistics and analysis should be computed separately from these raw evaluation files.
 
 ## Custom Evaluators
 
@@ -80,7 +100,6 @@ To create a custom evaluator:
 
 1. Inherit from `BaseEvaluator`
 2. Implement `evaluate_single()` method
-3. Optionally override `_calculate_summary()`
 
 Example:
 ```python
@@ -90,10 +109,12 @@ class MyEvaluator(BaseEvaluator):
     def evaluate_single(self, model_name, task_type, task_id, video_path, question_data):
         # Your evaluation logic here
         return {
-            "solution_correctness": "Correct",  # or "Incorrect" or "Partially Correct"
-            "explanation": "The solution correctly solves the task"
+            "solution_correctness_score": 5,  # 1-5 scale
+            "explanation": "The solution perfectly solves the task"
         }
 ```
+
+Note: Evaluators focus only on evaluation - analysis and summary statistics should be handled by separate analysis tools.
 
 ## API Reference
 
@@ -103,8 +124,8 @@ Base class providing common evaluation functionality.
 **Methods:**
 - `evaluate_model(model_name)`: Evaluate all tasks for a model
 - `evaluate_all_models()`: Evaluate all models in experiment
+- `evaluate_single()`: Abstract method to evaluate one task (implement in subclasses)
 - `_save_results()`: Save evaluation results
-- `_calculate_summary()`: Calculate summary statistics
 
 ### HumanEvaluator
 Gradio-based interface for human annotation.
@@ -129,11 +150,11 @@ Automatic evaluation using GPT-4O.
    - Add detailed comments for edge cases
 
 2. **For GPT-4O Evaluation:**
-   - Adjust `max_frames` based on video length
-   - Use lower temperature (0.1-0.3) for consistency
    - Monitor API costs for large experiments
+   - Results are deterministic with low temperature (0.1)
+   - Check frame extraction quality for debugging
 
 3. **General:**
    - Run evaluations after all inference is complete
    - Compare human and GPT-4O results for validation
-   - Export summaries for further analysis
+   - Use `python examples/run_evaluation.py --help` for all options

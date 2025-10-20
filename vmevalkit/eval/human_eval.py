@@ -24,13 +24,17 @@ class HumanEvaluator(BaseEvaluator):
     def __init__(self, 
                  output_dir: str = "data/evaluations",
                  experiment_name: str = "pilot_experiment",
-                 annotator_name: str = "anonymous"):
+                 annotator_name: str = "anonymous",
+                 models_filter: Optional[List[str]] = None,
+                 task_types_filter: Optional[List[str]] = None):
         """Initialize the human evaluator.
         
         Args:
             output_dir: Base directory for evaluation outputs
             experiment_name: Name of the experiment to evaluate
             annotator_name: Name of the human annotator
+            models_filter: List of models to include (None for all)
+            task_types_filter: List of task types to include (None for all)
         """
         super().__init__(output_dir, experiment_name)
         self.annotator_name = annotator_name
@@ -43,11 +47,15 @@ class HumanEvaluator(BaseEvaluator):
         self.evaluation_queue = []
         self.current_index = 0
         
+        # Store filters
+        self.models_filter = models_filter
+        self.task_types_filter = task_types_filter
+        
         # Load all tasks to evaluate
         self._load_evaluation_queue()
     
     def _load_evaluation_queue(self):
-        """Load all tasks that need to be evaluated."""
+        """Load all tasks that need to be evaluated, with filtering."""
         self.evaluation_queue = []
         
         # Iterate through all models and tasks
@@ -57,11 +65,19 @@ class HumanEvaluator(BaseEvaluator):
                 
             model_name = model_dir.name
             
+            # Apply model filter
+            if self.models_filter and model_name not in self.models_filter:
+                continue
+            
             for task_type_dir in model_dir.iterdir():
                 if not task_type_dir.is_dir():
                     continue
                     
                 task_type = task_type_dir.name
+                
+                # Apply task type filter
+                if self.task_types_filter and task_type not in self.task_types_filter:
+                    continue
                 
                 for task_dir in task_type_dir.iterdir():
                     if not task_dir.is_dir():
@@ -80,7 +96,16 @@ class HumanEvaluator(BaseEvaluator):
                         "task_id": task_id
                     })
         
-        logger.info(f"Loaded {len(self.evaluation_queue)} tasks to evaluate")
+        filter_info = ""
+        if self.models_filter or self.task_types_filter:
+            filter_parts = []
+            if self.models_filter:
+                filter_parts.append(f"models: {self.models_filter}")
+            if self.task_types_filter:
+                filter_parts.append(f"task_types: {self.task_types_filter}")
+            filter_info = f" (filtered by {', '.join(filter_parts)})"
+        
+        logger.info(f"Loaded {len(self.evaluation_queue)} tasks to evaluate{filter_info}")
     
     def evaluate_single(self, 
                        model_name: str,
@@ -211,9 +236,9 @@ class HumanEvaluator(BaseEvaluator):
                 with gr.Column():
                     # Simple correctness evaluation
                     correctness_score = gr.Radio(
-                        choices=["Correct", "Incorrect", "Partially Correct"],
+                        choices=[1, 2, 3, 4, 5],
                         label="Solution Correctness",
-                        info="Is the solution shown in the video correct?"
+                        info="Rate the correctness of the solution (1=Completely Wrong, 5=Perfect)"
                     )
                     
                     # Comments
@@ -295,8 +320,8 @@ class HumanEvaluator(BaseEvaluator):
                 nonlocal self
                 
                 # Validate inputs
-                if not correctness:
-                    return {status_text: "Please select a correctness evaluation!"}
+                if correctness is None:
+                    return {status_text: "Please select a correctness score!"}
                 
                 # Get current task
                 if self.current_index >= len(self.evaluation_queue):
@@ -306,7 +331,7 @@ class HumanEvaluator(BaseEvaluator):
                 
                 # Create evaluation result
                 evaluation = {
-                    "solution_correctness": correctness,
+                    "solution_correctness_score": correctness,
                     "comments": comments_text
                 }
                 
@@ -413,7 +438,7 @@ class HumanEvaluator(BaseEvaluator):
                             "task_id": task_id,
                             "annotator": data["metadata"]["annotator"],
                             "timestamp": data["metadata"]["timestamp"],
-                            "solution_correctness": result["solution_correctness"],
+                            "solution_correctness_score": result.get("solution_correctness_score", result.get("solution_correctness", 0)),
                             "comments": result.get("comments", "")
                         }
                         results.append(row)

@@ -1,5 +1,17 @@
 #!/usr/bin/env python3
-"""Example script demonstrating how to use VMEvalKit evaluation system."""
+"""
+VMEvalKit Evaluation Runner
+
+This script provides easy access to VMEvalKit's evaluation methods:
+- Human evaluation with Gradio interface
+- GPT-4O automatic evaluation
+- Custom evaluation examples
+
+Usage:
+    python run_evaluation.py human [--annotator NAME] [--port PORT] [--share]
+    python run_evaluation.py gpt4o
+    python run_evaluation.py custom
+"""
 
 import os
 import sys
@@ -16,20 +28,20 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def example_human_evaluation():
+def example_human_evaluation(annotator_name="John Doe", port=7860, share=False):
     """Example of running human evaluation."""
     print("\n=== Human Evaluation Example ===")
     
     # Create evaluator
     evaluator = HumanEvaluator(
         experiment_name="pilot_experiment",
-        annotator_name="John Doe"
+        annotator_name=annotator_name
     )
     
     # Launch interface (this will block until closed)
-    print("Launching human evaluation interface...")
-    print("Open http://localhost:7860 in your browser")
-    evaluator.launch_interface(port=7860)
+    print(f"Launching human evaluation interface for annotator: {annotator_name}")
+    print(f"Open http://localhost:{port} in your browser")
+    evaluator.launch_interface(port=port, share=share)
 
 
 def example_gpt4o_evaluation():
@@ -52,7 +64,17 @@ def example_gpt4o_evaluation():
     print("\nEvaluating specific model: luma-ray-2")
     try:
         results = evaluator.evaluate_model("luma-ray-2")
-        print(f"Evaluation complete. Summary: {results['summary']}")
+        
+        # Count evaluations
+        total_tasks = 0
+        evaluated_tasks = 0
+        for task_type, tasks in results["evaluations"].items():
+            for task_id, result in tasks.items():
+                total_tasks += 1
+                if "error" not in result:
+                    evaluated_tasks += 1
+        
+        print(f"Evaluation complete. {evaluated_tasks}/{total_tasks} tasks evaluated.")
     except Exception as e:
         print(f"Error: {e}")
     
@@ -60,12 +82,19 @@ def example_gpt4o_evaluation():
     print("\nEvaluating all models...")
     all_results = evaluator.evaluate_all_models()
     
-    # Print summary for each model
+    # Print basic counts for each model
     for model_name, results in all_results.items():
-        if "summary" in results:
+        if "evaluations" in results:
+            total_tasks = 0
+            evaluated_tasks = 0
+            for task_type, tasks in results["evaluations"].items():
+                for task_id, result in tasks.items():
+                    total_tasks += 1
+                    if "error" not in result:
+                        evaluated_tasks += 1
+            
             print(f"\n{model_name}:")
-            print(f"  - Total tasks: {results['summary']['total_tasks']}")
-            print(f"  - Average score: {results['summary'].get('average_score', 0):.2f}")
+            print(f"  - Tasks evaluated: {evaluated_tasks}/{total_tasks}")
 
 
 def example_custom_evaluation():
@@ -81,16 +110,12 @@ def example_custom_evaluation():
             # Simple evaluation logic
             import random
             
-            score = random.uniform(3, 5)  # Random score for demo
+            # Random score for demo
+            score = random.randint(1, 5)
             
             return {
-                "scores": {
-                    "overall": score
-                },
-                "binary_evaluations": {
-                    "passes": score >= 4
-                },
-                "overall_score": score,
+                "solution_correctness_score": score,
+                "explanation": f"Demo evaluation: solution scored {score}/5",
                 "status": "completed"
             }
     
@@ -100,36 +125,87 @@ def example_custom_evaluation():
     # Evaluate a model
     print("Running custom evaluation...")
     results = evaluator.evaluate_model("luma-ray-2")
-    print(f"Custom evaluation complete: {results['summary']}")
+    
+    # Count results
+    total_tasks = 0
+    evaluated_tasks = 0
+    for task_type, tasks in results["evaluations"].items():
+        for task_id, result in tasks.items():
+            total_tasks += 1
+            if "error" not in result:
+                evaluated_tasks += 1
+    
+    print(f"Custom evaluation complete: {evaluated_tasks}/{total_tasks} tasks evaluated")
 
 
 def main():
-    """Main function to run examples."""
-    print("VMEvalKit Evaluation Examples")
-    print("=" * 40)
+    """Main function to run evaluation."""
+    import argparse
+    
+    parser = argparse.ArgumentParser(
+        description="VMEvalKit Evaluation Runner",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Run human evaluation
+  python run_evaluation.py human
+  
+  # Run human evaluation with custom annotator
+  python run_evaluation.py human --annotator "Jane Smith"
+  
+  # Run GPT-4O evaluation
+  python run_evaluation.py gpt4o
+  
+  # Demonstrate custom evaluator
+  python run_evaluation.py custom
+        """
+    )
+    
+    parser.add_argument(
+        'method',
+        choices=['human', 'gpt4o', 'custom'],
+        help='Evaluation method to use'
+    )
+    
+    # Human evaluation specific arguments
+    parser.add_argument(
+        '--annotator',
+        type=str,
+        default='John Doe',
+        help='Annotator name for human evaluation (default: John Doe)'
+    )
+    
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=7860,
+        help='Port for Gradio interface (default: 7860)'
+    )
+    
+    parser.add_argument(
+        '--share',
+        action='store_true',
+        help='Create a public share link for the interface'
+    )
+    
+    args = parser.parse_args()
     
     # Check if pilot_experiment exists
     if not Path("data/outputs/pilot_experiment").exists():
         print("Error: pilot_experiment not found. Please run inference first.")
         return
     
-    # Run examples based on command line argument
-    if len(sys.argv) > 1:
-        if sys.argv[1] == "human":
-            example_human_evaluation()
-        elif sys.argv[1] == "gpt4o":
-            example_gpt4o_evaluation()
-        elif sys.argv[1] == "custom":
-            example_custom_evaluation()
-        else:
-            print(f"Unknown example: {sys.argv[1]}")
-            print("Usage: python run_evaluation.py [human|gpt4o|custom]")
-    else:
-        print("Usage: python run_evaluation.py [human|gpt4o|custom]")
-        print("\nAvailable examples:")
-        print("  human  - Launch human evaluation interface")
-        print("  gpt4o  - Run GPT-4O automatic evaluation")
-        print("  custom - Demonstrate custom evaluator")
+    # Run the selected evaluation method
+    if args.method == "human":
+        example_human_evaluation(
+            annotator_name=args.annotator,
+            port=args.port,
+            share=args.share
+        )
+    elif args.method == "gpt4o":
+        example_gpt4o_evaluation()
+    elif args.method == "custom":
+        example_custom_evaluation()
 
 
 if __name__ == "__main__":

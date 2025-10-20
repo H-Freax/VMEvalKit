@@ -161,19 +161,19 @@ class GPT4OEvaluator(BaseEvaluator):
             Evaluation prompt string
         """
         base_prompt = """You are an expert evaluator for video generation models. 
-Your task is to evaluate whether the solution shown in the generated video is correct.
+Your task is to evaluate the correctness of the solution shown in the generated video.
 
-Analyze the provided frames from the generated video and determine:
-
-Is the solution shown in the video correct? Choose one:
-- "Correct": The solution is fully correct
-- "Incorrect": The solution is wrong
-- "Partially Correct": The solution has some correct elements but is not fully correct
+Analyze the provided frames from the generated video and rate the solution correctness on a scale of 1-5:
+- 1: Completely wrong solution
+- 2: Mostly incorrect with minor correct elements
+- 3: Partially correct (about half correct)
+- 4: Mostly correct with minor errors
+- 5: Perfect solution
 
 Provide your evaluation in JSON format:
 {
-    "solution_correctness": "<Correct/Incorrect/Partially Correct>",
-    "explanation": "<brief explanation of why the solution is correct/incorrect>"
+    "solution_correctness_score": <1-5>,
+    "explanation": "<brief explanation of your rating>"
 }
 """
         
@@ -274,7 +274,7 @@ Provide your evaluation in JSON format:
             
             # Add metadata
             result = {
-                "solution_correctness": evaluation_data.get("solution_correctness", "Unknown"),
+                "solution_correctness_score": evaluation_data.get("solution_correctness_score", 0),
                 "explanation": evaluation_data.get("explanation", ""),
                 "frames_analyzed": len(frames),
                 "status": "completed"
@@ -329,56 +329,3 @@ Provide your evaluation in JSON format:
             except:
                 pass
     
-    def _calculate_summary(self, evaluations: Dict[str, Any]) -> Dict[str, Any]:
-        """Calculate summary statistics from GPT-4O evaluation results.
-        
-        Args:
-            evaluations: Dict of evaluation results by task type and task id
-            
-        Returns:
-            Dict containing summary statistics
-        """
-        summary = super()._calculate_summary(evaluations)
-        
-        # Add GPT-4O specific statistics
-        correctness_counts = {
-            "Correct": 0,
-            "Incorrect": 0,
-            "Partially Correct": 0
-        }
-        task_type_counts = {}
-        
-        for task_type, tasks in evaluations.items():
-            task_type_counts[task_type] = {
-                "Correct": 0,
-                "Incorrect": 0,
-                "Partially Correct": 0
-            }
-            
-            for task_id, result in tasks.items():
-                if "error" not in result and "solution_correctness" in result:
-                    correctness = result["solution_correctness"]
-                    if correctness in correctness_counts:
-                        correctness_counts[correctness] += 1
-                        task_type_counts[task_type][correctness] += 1
-        
-        # Calculate percentages
-        total_evaluated = sum(correctness_counts.values())
-        if total_evaluated > 0:
-            summary["correctness_percentages"] = {
-                key: (count / total_evaluated) * 100
-                for key, count in correctness_counts.items()
-            }
-            summary["accuracy"] = (correctness_counts["Correct"] / total_evaluated) * 100
-        
-        # Task type breakdowns
-        summary["task_type_correctness"] = {}
-        for task_type, counts in task_type_counts.items():
-            total = sum(counts.values())
-            if total > 0:
-                summary["task_type_correctness"][task_type] = {
-                    key: (count / total) * 100
-                    for key, count in counts.items()
-                }
-        
-        return summary

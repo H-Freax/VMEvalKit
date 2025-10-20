@@ -290,17 +290,29 @@ VMEvalKit provides two evaluation methods to assess video generation models' rea
 Interactive web interface for manual assessment:
 
 ```bash
-# Launch human evaluation interface
-python -m vmevalkit.runner.evaluate human --annotator "Your Name"
+# Launch human evaluation interface with default settings (all models, all tasks)
+python examples/run_evaluation.py human
 
-# With public share link
-python -m vmevalkit.runner.evaluate human --annotator "Your Name" --share
+# With custom annotator name
+python examples/run_evaluation.py human --annotator "Jane Smith"
+
+# Filter to specific models only
+python examples/run_evaluation.py human --models luma-ray-2 openai-sora-2
+
+# Filter to specific task types only
+python examples/run_evaluation.py human --task-types chess_task maze_task
+
+# Combine filters (specific models AND task types)
+python examples/run_evaluation.py human --models luma-ray-2 --task-types chess_task
+
+# With public share link and custom port
+python examples/run_evaluation.py human --share --port 8080
 ```
 
 **Features:**
 - Gradio-based web interface
 - Side-by-side comparison of input and output
-- Structured evaluation criteria
+- Simple 1-5 correctness scale evaluation
 - Progress tracking
 
 ### GPT-4O Evaluation
@@ -311,18 +323,38 @@ Automatic evaluation using OpenAI's vision model:
 # Set API key
 export OPENAI_API_KEY=your_api_key
 
-# Evaluate all models
-python -m vmevalkit.runner.evaluate gpt4o
+# Evaluate all models and tasks
+python examples/run_evaluation.py gpt4o
 
-# Evaluate specific models
-python -m vmevalkit.runner.evaluate gpt4o --models luma-ray-2 openai-sora-2
+# Evaluate specific models only
+python examples/run_evaluation.py gpt4o --models luma-ray-2 openai-sora-2
+
+# Evaluate specific task types only  
+python examples/run_evaluation.py gpt4o --task-types chess_task maze_task
+
+# Evaluate specific task IDs only
+python examples/run_evaluation.py gpt4o --task-ids chess_0001 chess_0002 maze_0005
+
+# Combine filters for precise control
+python examples/run_evaluation.py gpt4o --models luma-ray-2 --task-types chess_task --task-ids chess_0001
 ```
+
+**Note:** The evaluation system automatically **skips already evaluated tasks**, so you can safely re-run commands to resume evaluation.
 
 **Features:**
 - Multi-frame video analysis
 - Task-specific evaluation prompts
 - Batch processing
-- Detailed scoring and explanations
+- 1-5 correctness scale with detailed explanations
+
+### Custom Evaluation
+
+Example of creating a custom evaluator:
+
+```bash
+# Run the custom evaluation example
+python examples/run_evaluation.py custom
+```
 
 ### Evaluation Output
 
@@ -335,9 +367,12 @@ data/evaluations/
 │   │   │   ├── chess_0000/
 │   │   │   │   ├── human-eval.json
 │   │   │   │   └── gpt-4o-eval.json
-│   │   └── <evaluator>_summary.json
-│   └── <evaluator>_all_models.json
+│   │   │   └── ...
+│   │   └── ...
+│   └── ...
 ```
+
+Each evaluation file contains individual task results. Analysis and summary statistics should be computed separately from these raw evaluation results.
 
 See [vmevalkit/eval/README.md](vmevalkit/eval/README.md) for detailed documentation.
 
