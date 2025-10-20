@@ -1,3 +1,3 @@
 # 🙌 Contributors
 
-Hokin Deng, Ran Ji, Maijunxian Wang, Alicia Liu
+Hokin Deng, Ran Ji (Sara), Maijunxian Wang, Alicia Liu, …
