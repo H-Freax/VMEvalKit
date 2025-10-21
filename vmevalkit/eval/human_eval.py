@@ -185,7 +185,7 @@ class HumanEvaluator:
             gr.Markdown("### Evaluation")
             correctness_score = gr.Radio(
                 choices=[1, 2, 3, 4, 5],
-                label="Solution Correctness (1=Wrong, 5=Perfect)"
+                label="Solution Correctness (1=Wrong, 5=Perfect). We will mark 4, 5 as correct in our binary grading."
             )
             comments = gr.Textbox(label="Comments (Optional)", lines=3)
             
