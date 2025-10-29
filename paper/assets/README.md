@@ -1,14 +1,19 @@
-# Paper Assets - Sora Score=5 Examples
+# Paper Assets - Mixed Model Score=5 Examples
 
-This directory contains one exemplary Sora output (score=5) per task type.
+This directory contains one exemplary video output (score=5) per task type from the **best-performing models**.
+
+## Models Used
+
+- **Sora**: Chess, Maze, Rotation
+- **Veo 3.1**: Raven, Sudoku
 
 ## Directory Structure
 
 ```
 paper/assets/
 ├── chess_task/
-│   ├── sora_chess_example_12frames.png   # 12-frame temporal decomposition
-│   ├── sora_chess_example_12frames.eps   # Vector format for paper
+│   ├── chess_example_12frames.png        # 12-frame temporal decomposition
+│   ├── chess_example_12frames.eps        # Vector format for paper
 │   ├── first_frame.png                   # Original input image
 │   ├── final_frame.png                   # Target/solution image  
 │   ├── prompt.txt                        # Text prompt used
@@ -25,16 +30,19 @@ paper/assets/
 
 ## Examples Used
 
-- **Chess**: chess_0001 (Score: 5/5)
-- **Maze**: maze_0001 (Score: 5/5)
-- **Raven**: raven_0001 (Score: 5/5)
-- **Rotation**: rotation_0014 (Score: 5/5)
-- **Sudoku**: sudoku_0000 (Score: 5/5)
+| Task | Model | Question ID | Score |
+|------|-------|-------------|-------|
+| Chess | **Sora** | chess_0002 | 5/5 |
+| Maze | **Sora** | maze_0003 | 5/5 |
+| Raven | **Veo 3.1** | raven_0014 | 5/5 |
+| Rotation | **Sora** | rotation_0014 | 5/5 |
+| Sudoku | **Veo 3.1** | sudoku_0011 | 5/5 |
 
 ## Frame Decomposition Details
 
 Each 12-frame sequence shows:
-- Frames extracted at: 0, 21, 43, 65, 87, 109, 130, 152, 174, 196, 218, 239
-- Total video duration: 8 seconds at 30 FPS
-- Frame labels show actual frame indices
-- Publication-ready at 300 DPI
+- **12 evenly-spaced frames** from 8-second videos
+- **Correct aspect ratio** preserved (16:9 for 1280x720, 1920x1080)
+- **Frame labels** show actual frame indices (not sequential)
+- **Publication-ready** at 300 DPI (PNG) and vector (EPS)
+- Frame dimensions: 64 inches wide × 4 inches tall
