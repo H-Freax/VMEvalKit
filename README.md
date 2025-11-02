@@ -1,6 +1,6 @@
 # VMEvalKit 🎥🧠
 
-A framework to evaluate reasoning capabilities in video generation models at scale, through cognitive tasks. We **make it very convenient** to [**add models**](https://github.com/hokindeng/VMEvalKit/blob/feacture/readme/docs/ADDING_MODELS.md), [**add tasks**](https://github.com/hokindeng/VMEvalKit/blob/feacture/readme/docs/ADDING_TASKS.md), [**run inferneces**](docs/INFERENCE.md), [**run evaluations**](docs/EVALUATION.md), and [**display results**](docs/WEB_DASHBOARD.md). It's **permissively open-source**, and we welcome everyone to [**join**](https://join.slack.com/t/growingailikeachild/shared_invite/zt-309yqd0sl-W8xzOkdBPha1Jh5rnee78A) us and **build in public together**! 🚀
+A framework to evaluate reasoning capabilities in video generation models at scale, through cognitive tasks. We **make it very convenient** to [**add models**](docs/ADDING_MODELS.md), [**add tasks**](docs/ADDING_TASKS.md), [**run inferences**](docs/INFERENCE.md), [**run evaluations**](docs/EVALUATION.md), and [**display results**](docs/WEB_DASHBOARD.md). It's **permissively open-source**, and we welcome everyone to [**join**](https://join.slack.com/t/growingailikeachild/shared_invite/zt-309yqd0sl-W8xzOkdBPha1Jh5rnee78A) us and **build in public together**! 🚀
 
 ### Basic Idea
 
@@ -69,6 +69,8 @@ print(f"Video saved to: {result['inference_dir']}")
 ## Tasks
 
 VMEvalKit evaluates models across 5 cognitive reasoning domains:
+
+![Task Pair Structure](paper/video-models-start-to-solve/assets/question_set.jpg)
 
 ### 🧩 Maze Solving
 Navigate from start to finish through complex pathways.
