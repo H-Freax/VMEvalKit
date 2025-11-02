@@ -1,6 +1,6 @@
 # VMEvalKit 🎥🧠
 
-Evaluate reasoning capabilities in video generation models through cognitive tasks.
+A framework to evaluate reasoning capabilities in video generation models through cognitive tasks at scale, and is easy to add models and add tasks. We welcome everyone to join us and build in public! 
 
 ## Overview
 
@@ -11,6 +11,8 @@ VMEvalKit tests whether video models can solve visual problems (mazes, chess, pu
 **Key requirement**: Models must accept BOTH:
 - 📸 An input image (the problem)
 - 📝 A text prompt (instructions)
+
+![VMEvalKit Framework](paper/video-models-start-to-solve/assets/draft_1.jpg)
 
 ## Installation
 
