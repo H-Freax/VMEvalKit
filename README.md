@@ -1,16 +1,37 @@
 # VMEvalKit 🎥🧠
 
-A framework to evaluate reasoning capabilities in video generation models through cognitive tasks at scale, and is easy to add models and add tasks. We welcome everyone to join us and build in public! 
+A framework to evaluate reasoning capabilities in video generation models at scale, through cognitive tasks, and is easy to add models and add tasks. We welcome everyone to [join](https://join.slack.com/t/growingailikeachild/shared_invite/zt-309yqd0sl-W8xzOkdBPha1Jh5rnee78A) us and build in public! 🚀
 
-## Overview
+### Basic Idea
 
-VMEvalKit tests whether video models can solve visual problems (mazes, chess, puzzles) by generating solution videos. 
+VMEvalKit aims to provide an infrastructure for reasoning research in video models at scale:
 
-**Research**: Our [paper](paper/video-models-start-to-solve/Video_Model_Start_to_Solve.pdf) shows leading models achieve >60% success on reasoning tasks. Explore results at [grow-ai-like-a-child.com/video-reason](https://grow-ai-like-a-child.com/video-reason/) 🎯
+- **🎯 Task Creation at Scale**: Create question dataset of many different cognitive tasks programmatically at scale and make sure the dataset well-organized.
+- **🚀 Model Inference at Scale**: Easy one-click inference of the entire question dataset across many video models (commercial APIs + open-source) with automatic resume, error handling, and structured output management, and automatically sync the inference results into the dataset. 
+- **⚖️ Evaluation Pipeline**: Human evaluation via web interface and AI evaluation via automated MLLM scoring, also automatically sync the eval results into the dataset. 
+- **☁️ Dataset Management**: Manage question datasets from task creation, inference results from video models, and evaluation results from humans or MLLM pipelines. Provide both AWS S3 or HuggingFace use case, with version tracking and built-in logging for reproducibility. 
 
-**Key requirement**: Models must accept BOTH:
-- 📸 An input image (the problem)
-- 📝 A text prompt (instructions)
+We have completed running a question dataset of chess, maze, Sudoku, mental rotation, and Raven's Matrices on latest video models. Checkout our raw results (videos) on this [**website**](https://grow-ai-like-a-child.com/video-reason/).
+
+## Solving Chess
+
+![Chess Example](paper/video-models-start-to-solve/assets/chess_example.jpg)
+
+## Solving Maze
+
+![Maze Example](paper/video-models-start-to-solve/assets/maze_example.jpg)
+
+## Mental Rotation
+
+![Rotation Example](paper/video-models-start-to-solve/assets/rotation_example.jpg)
+
+## Raven's Matrices
+
+![Raven Example](paper/video-models-start-to-solve/assets/raven_example.jpg)
+
+## Sudoku Solving
+
+![Sudoku Example](paper/video-models-start-to-solve/assets/sudoku_example.jpg)
 
 ![VMEvalKit Framework](paper/video-models-start-to-solve/assets/draft_1.jpg)
 
@@ -85,11 +106,32 @@ Each task pair is organized in its own folder (`data/questions/{domain}_task/{qu
 
 ## Tasks
 
-- **Maze Solving**: Navigate from start to finish
-- **Mental Rotation**: Rotate 3D objects to match targets
-- **Chess Puzzles**: Demonstrate puzzle solutions
-- **Raven's Matrices**: Complete visual patterns
-- **Sudoku Solving**: Complete 3×3 grids with logical deduction
+VMEvalKit evaluates models across 5 cognitive reasoning domains:
+
+### 🧩 Maze Solving
+Navigate from start to finish through complex pathways.
+
+![Maze Example](paper/video-models-start-to-solve/assets/maze_example.jpg)
+
+### 🔄 Mental Rotation
+Rotate 3D objects to match target orientations.
+
+![Rotation Example](paper/video-models-start-to-solve/assets/rotation_example.jpg)
+
+### ♟️ Chess Puzzles
+Demonstrate chess puzzle solutions with strategic moves.
+
+![Chess Example](paper/video-models-start-to-solve/assets/chess_example.jpg)
+
+### 🎨 Raven's Matrices
+Complete visual pattern reasoning tasks.
+
+![Raven Example](paper/video-models-start-to-solve/assets/raven_example.jpg)
+
+### 🔢 Sudoku Solving
+Complete 3×3 grids using logical deduction.
+
+![Sudoku Example](paper/video-models-start-to-solve/assets/sudoku_example.jpg)
 
 **🔬 Research Findings**: Leading models achieve >60% success rates on reasoning tasks. See detailed performance analysis and example videos at the [**Results Page**](https://grow-ai-like-a-child.com/video-reason/).
 
