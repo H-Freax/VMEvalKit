@@ -250,7 +250,7 @@ See **[Data Management](docs/DATA_MANAGEMENT.md)** for details.
 
 ## Display Results
 
-**You could quickly host your results on the dashboard at:** http://localhost:5000
+You could quickly host your results on an interactive dashboard at: http://localhost:5000
 
 ```bash
 # Navigate to web directory
@@ -263,6 +263,20 @@ cd web
 source ../venv/bin/activate
 python app.py
 ```
+See **[Web Dashboard](docs/WEB_DASHBOARD.md)** for details.
+
+## Invitation to Collaborate 🤝
+
+VMEvalKit is meant to be a **shared playground** for testing and improving video reasoning. If you’re interested in cognitive tasks, video models, or evaluation, we’d love to build with you:
+
+* 🧪 Add new reasoning tasks (planning, causality, social, physical, etc.)
+* 🎥 Plug in new video models (APIs or open-source)
+* 📊 Experiment with better evaluation metrics and protocols
+* 🧱 Improve infrastructure, logging, and the web dashboard
+* 📚 Use VMEvalKit in your own research and share back configs/scripts
+
+💬 **Join us on Slack** to ask questions, propose ideas, or start a collab:
+[Slack Invite](https://join.slack.com/t/growingailikeachild/shared_invite/zt-309yqd0sl-W8xzOkdBPha1Jh5rnee78A) 🚀
 
 ## Research
 
