@@ -267,9 +267,7 @@ See **[Web Dashboard](docs/WEB_DASHBOARD.md)** for details.
 
 ## Add Models or Tasks
 
-You can add new video generation models and reasoning tasks with minimal effort:
-
-**Adding New Models**
+You can add new video generation models and reasoning tasks with minimal effort.
 
 Add any video generation model (API-based or open-source) with just a few steps:
 
@@ -293,8 +291,6 @@ Then register it in `MODEL_CATALOG.py`:
 ```
 
 See **[Adding Models Guide](docs/ADDING_MODELS.md)** for details.
-
-**Adding New Tasks**
 
 Create new reasoning tasks programmatically at scale:
 
