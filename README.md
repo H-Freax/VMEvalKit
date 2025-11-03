@@ -151,31 +151,23 @@ See **[Inference Guide](docs/INFERENCE.md)** for details.
 
 ## Evaluation Pipeline
 
-**Quick Usecase**
+Quick Usecase
 
 ```bash
 # Full experiment evaluation
 python examples/run_evaluation.py human
-```
+python examples/run_evaluation.py gpt4o
 
-Human Evaluator
-
-```bash
 # Runner module
 python -m vmevalkit.runner.evaluate human \
   --experiment pilot_experiment \
   --annotator "John Doe" \
   --port 7860 --share
-```
 
-GPT-4O Evaluator
-
-```bash
-python examples/run_evaluation.py gpt4o
 python -m vmevalkit.runner.evaluate gpt4o \
   --experiment pilot_experiment \
   --output-dir data/evaluations \
-  --temperature 0.1
+  --temperature 0.1 
 ```
 
 Use as Python Modules
