@@ -278,14 +278,6 @@ VMEvalKit is meant to be a **shared playground** for testing and improving video
 💬 **Join us on Slack** to ask questions, propose ideas, or start a collab:
 [Slack Invite](https://join.slack.com/t/growingailikeachild/shared_invite/zt-309yqd0sl-W8xzOkdBPha1Jh5rnee78A) 🚀
 
-## Research
-
-Here we keep track of papers spinned off from this code infrastructure and some works in progress.
-
-- [**"Video Models Start to Solve Chess, Maze, Sudoku, Mental Rotation, and Raven's Matrices"**](paper/video-models-start-to-solve/Video_Model_Start_to_Solve.pdf)
-
-This paper implements our experimental framework and demonstrates that leading video generation models (Sora-2 etc) can perform visual reasoning tasks with >60% success rates. See [**results**](https://grow-ai-like-a-child.com/video-reason/).
-
 ## Documentation
 
 📚 **Core Documentation:**
@@ -295,6 +287,14 @@ This paper implements our experimental framework and demonstrates that leading v
 - **[Adding Models](docs/ADDING_MODELS.md)** - How to add new video generation models
 - **[Adding Tasks](docs/ADDING_TASKS.md)** - How to create new reasoning tasks
 - **[Web Dashboard](docs/WEB_DASHBOARD.md)** - Interactive results visualization
+
+## Research
+
+Here we keep track of papers spinned off from this code infrastructure and some works in progress.
+
+- [**"Video Models Start to Solve Chess, Maze, Sudoku, Mental Rotation, and Raven's Matrices"**](paper/video-models-start-to-solve/Video_Model_Start_to_Solve.pdf)
+
+This paper implements our experimental framework and demonstrates that leading video generation models (Sora-2 etc) can perform visual reasoning tasks with >60% success rates. See [**results**](https://grow-ai-like-a-child.com/video-reason/).
 
 ## License
 
