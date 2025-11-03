@@ -1,4 +1,4 @@
-**We welcome everyone to join us in contributing to VMEvalKit - a very easy-to-use framework for investigation of reasoning in video models.**
+**We welcome everyone to join us. - Let us build a very easy-to-use framework for investigation of reasoning in video models.**
 
 ### 🌟 Current Contributors
 

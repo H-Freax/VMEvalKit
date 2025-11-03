@@ -442,25 +442,87 @@ The chess task uses `SelfContainedMateGenerator` to create **150+ verified mate-
 ## Integration with VMEvalKit
 
 ### Task Pipeline
-1. **Input Generation**: Chess board images from FEN positions
-2. **Model Inference**: Video showing piece movement solution
-3. **Solution Extraction**: Parse video to identify move played
-4. **Validation**: Verify move legality and checkmate delivery
-5. **Scoring**: Rate accuracy, legality, and video quality
+
+The chess task integrates seamlessly with VMEvalKit's evaluation pipeline:
+
+```mermaid
+graph LR
+    A[Chess Position Generator] --> B[PNG Board Images]
+    B --> C[Model Inference]
+    C --> D[Generated Video]
+    D --> E[Frame Extraction]
+    E --> F[Move Detection]
+    F --> G[Validation & Scoring]
+```
+
+1. **Input Generation**
+   - FEN positions converted to PNG board images
+   - Initial and final positions generated for each task
+   - Standardized prompts applied
+
+2. **Model Inference**
+   - Video models receive first frame + prompt
+   - Generate video showing the solution
+   - Output saved to model-specific directory
+
+3. **Solution Extraction**
+   - Extract frames from generated video
+   - Identify piece movements between frames
+   - Parse move in chess notation
+
+4. **Validation**
+   - Verify move legality using python-chess
+   - Check if move achieves checkmate
+   - Compare with expected solutions
+
+5. **Scoring**
+   - **Accuracy**: Correct mate move found
+   - **Legality**: Move follows chess rules
+   - **Quality**: Clear piece movement shown
 
 ### Expected Model Behavior
+
 ```
-INPUT:  Chess board image + "White to move. Find checkmate in one move."
+INPUT:
+  - Image: data/questions/chess_task/chess_0001/first_frame.png
+  - Prompt: "White can deliver checkmate in one move. Show the winning move."
 
-MODEL:  Generates video showing:
-        - Initial board position (first frame)
-        - Piece movement animation
-        - Final board position with checkmate (last frame)
+MODEL GENERATION:
+  - Frame 1: Shows initial board position
+  - Frames 2-N: Animation of piece movement
+  - Final Frame: Shows board after the mate move
 
-OUTPUT: Video demonstrating Ra1→Ra8 movement with clear checkmate
+OUTPUT:
+  - Video: data/results/model_name/chess_0001_output.mp4
+  - Extracted final position for validation
 
-VALIDATION: ✅ Move is legal  ✅ Results in checkmate  ✅ Video shows movement
+EVALUATION:
+  ✅ Move Detected: Ra1→Ra8
+  ✅ Legal Move: Yes
+  ✅ Checkmate: Yes
+  ✅ Score: 1.0
 ```
+
+### Evaluation Modes
+
+1. **Automatic (GPT-4O)**
+   ```python
+   python vmevalkit/runner/evaluate.py \
+     --mode gpt4o \
+     --experiment chess_eval
+   ```
+
+2. **Human Evaluation**
+   ```python
+   python vmevalkit/runner/evaluate.py \
+     --mode human \
+     --experiment chess_eval
+   ```
+
+3. **Custom Evaluation**
+   - Implement custom logic for move extraction
+   - Use python-chess for validation
+   - Score based on task-specific criteria
 
 ## Notes
 
