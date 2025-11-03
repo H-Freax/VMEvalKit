@@ -181,6 +181,111 @@ evaluator.launch_interface(share=True, port=7860)
 
 See **[Evaluation Guide](docs/EVALUATION.md)** for details.
 
+## Dataset Management
+
+### Dataset Structure
+
+VMEvalKit uses a hierarchical structure for organizing all data:
+
+```
+data/
+├── questions/                       # Task datasets
+│   ├── vmeval_dataset.json         # Master dataset manifest
+│   ├── chess_task/                 # Chess puzzles (mate-in-1 scenarios)
+│   │   └── chess_0000/
+│   │       ├── first_frame.png     # Initial chess position
+│   │       ├── final_frame.png     # Solution position
+│   │       ├── prompt.txt          # Move instructions
+│   │       └── question_metadata.json  # Task metadata
+│   ├── maze_task/                  # Maze solving challenges
+│   ├── raven_task/                 # Raven's progressive matrices
+│   ├── rotation_task/              # 3D mental rotation
+│   └── sudoku_task/                # Sudoku puzzles
+│
+├── outputs/                         # Model inference results
+│   └── pilot_experiment/           # Experiment name
+│       └── <model_name>/           # e.g., openai-sora-2, luma-ray-2
+│           └── <domain>_task/      # e.g., chess_task
+│               └── <task_id>/      # e.g., chess_0000
+│                   └── <run_id>/   # Timestamped run folder
+│                       ├── video/
+│                       │   └── model_output.mp4
+│                       ├── question/
+│                       │   ├── prompt.txt
+│                       │   └── first_frame.png
+│                       └── metadata.json
+│
+├── evaluations/                     # Evaluation results
+│   └── pilot_experiment/
+│       └── <model_name>/
+│           └── <domain>_task/
+│               └── <task_id>/
+│                   ├── human-eval.json      # Human evaluation scores
+│                   └── GPT4OEvaluator.json  # GPT-4O evaluation scores
+│
+└── data_logging/                    # Version tracking
+    ├── version_log.json            # Version history
+    └── versions/                   # Version snapshots
+```
+
+### Synchronization
+
+Upload/download your dataset from HuggingFace or S3:
+
+```bash
+# Basic upload (uses timestamp: YYYYMMDDHHMM)
+python data/s3_sync.py
+
+# Upload and log version
+python data/s3_sync.py --log
+
+# Upload with specific date
+python data/s3_sync.py --date 20250115
+
+# Future: Download from S3 (to be implemented)
+# python data/s3_sync.py --download --date 20250115
+```
+
+Python API
+
+```python
+from data.s3_sync import sync_to_s3
+
+# Upload to S3 with automatic timestamp
+s3_uri = sync_to_s3()
+print(f"Data uploaded to: {s3_uri}")
+
+# Upload with custom date and specific directory
+s3_uri = sync_to_s3(
+    data_dir=Path("data/outputs"),
+    date_prefix="202501151030"
+)
+
+# Progress monitoring (uploads show status every 100 files)
+# ↳ 100 files...
+# ↳ 200 files...
+# ✅ Uploaded 1300 files (180.5 MB)
+```
+
+Version tracking 
+
+```bash
+# View version history
+python data/data_logging/version_tracker.py summary
+
+# Get latest version
+python data/data_logging/version_tracker.py latest
+
+# Example output:
+# 📊 Dataset Versions
+# ========================================
+# v1.0 (20250114) → s3://vmevalkit/202501141500/data
+#   180.5MB, 1300 files
+# v1.1 (20250115) → s3://vmevalkit/202501151030/data
+#   195.2MB, 1450 files
+```
+
+
 ## Documentation
 
 📚 **Core Documentation:**
