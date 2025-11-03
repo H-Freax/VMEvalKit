@@ -608,6 +608,68 @@ generator.rng.seed(seed)
 - Position-based algorithms ensure unique solutions
 - No ambiguous patterns possible with current implementation
 
+## Integration with VMEvalKit
+
+### End-to-End Workflow
+
+1. Dataset generation
+   - Entry point: `vmevalkit.tasks.raven_task.create_dataset(num_samples)`
+   - Used by runner: `vmevalkit.runner.create_dataset.generate_domain_to_folders("raven", ...)`
+   - Flow:
+     - Generate matrices and temp images (`*_first.png`, `*_final.png`)
+     - Runner copies to `data/questions/raven_task/<id>/`
+     - Writes `prompt.txt` and `question_metadata.json`
+     - Updates image paths to be relative to `data/questions`
+
+2. Inference (video generation)
+   - API: `vmevalkit.runner.inference.run_inference(...)` or `InferenceRunner`
+   - Output layout (per task and run):
+     ```
+     data/outputs/<experiment>/<model>/raven_task/<task_id>/<run_timestamp>/
+     ├── question/
+     │   ├── first_frame.png
+     │   ├── final_frame.png
+     │   └── prompt.txt
+     └── video/
+         └── <generated>.mp4
+     ```
+
+3. Automatic evaluation
+   - Module: `vmevalkit.eval.gpt4o_eval.GPT4OEvaluator`
+   - Task guidance for Raven: "Verify that the pattern completion in the final frame matches the expected pattern."
+   - Compares model's video final frame with ground truth `question/final_frame.png`
+
+4. Human evaluation (optional)
+   - Module: `vmevalkit.eval.human_eval.HumanEvaluator`
+   - Loads the same folder layout and presents side-by-side comparison
+
+### Runner Integration Details
+
+- Domain registry entry (runner):
+  ```
+  DOMAIN_REGISTRY["raven"] = {
+      'module': 'vmevalkit.tasks.raven_task',
+      'create_function': 'create_dataset',
+      'process_dataset': lambda dataset, n: dataset['pairs']
+  }
+  ```
+- Function used: `generate_domain_to_folders("raven", num_samples, output_base, random_seed)`
+- Copies temp files from generator into standardized per-question folders
+
+### File and Metadata Contract
+
+- Required files per question:
+  - `first_frame.png` (incomplete matrix)
+  - `final_frame.png` (ground truth)
+  - `prompt.txt` (standardized instruction)
+  - `question_metadata.json` (includes `raven_data.rule_type` and `difficulty`)
+- Paths in metadata are relative to `data/questions/`
+
+### Reproducibility
+
+- Seeds: `seed = 2025 + index` stored under `raven_data.seed`
+- `RPMPuzzleGenerator.rng` reseeded per task to ensure deterministic regeneration
+
 ## Evaluation Criteria
 
 ### Pattern Recognition
