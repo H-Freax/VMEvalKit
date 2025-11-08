@@ -5,25 +5,16 @@ Wrapper for the LTX-Video model (submodules/LTX-Video) to integrate with VMEvalK
 unified inference interface. Supports image-to-video generation with text prompts.
 """
 
-import os
 import sys
 import subprocess
-import tempfile
 from pathlib import Path
 from typing import Dict, Any, Optional, Union
 from .base import ModelWrapper
-import json
 import time
 
 # Add LTX-Video submodule to path
 LTXV_PATH = Path(__file__).parent.parent.parent / "submodules" / "LTX-Video"
 sys.path.insert(0, str(LTXV_PATH))
-
-try:
-    from ltx_video.inference import LTXVInference
-except ImportError:
-    print(f"import ltx_video.inference failed, please check if the module is installed")
-    LTXVInference = None
 
 
 class LTXVideoService:
@@ -62,12 +53,7 @@ class LTXVideoService:
             model_id, "configs/ltxv-13b-0.9.8-distilled.yaml"
         )
         
-        # Check if LTX-Video is available
-        if LTXVInference is None:
-            raise ImportError(
-                f"LTX-Video not available. Please initialize submodule:\n"
-                f"cd {LTXV_PATH.parent} && git submodule update --init LTX-Video"
-            )
+        #TODO: Check if LTX-Video is available
 
     def _run_ltx_inference(
         self,

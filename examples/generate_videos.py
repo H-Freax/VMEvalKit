@@ -61,12 +61,6 @@ OUTPUT_DIR = Path("data/outputs/pilot_experiment")
 # Expected domains (for validation)
 EXPECTED_DOMAINS = ["chess", "maze", "raven", "rotation", "sudoku"]
 
-
-# ========================================
-# PROGRESS TRACKING REMOVED (deprecated)
-# ========================================
-
-
 # ========================================
 # FOLDER-BASED TASK DISCOVERY
 # ========================================
@@ -751,13 +745,4 @@ Examples:
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        print("\n\n⚠️  Experiment interrupted by user")
-        sys.exit(0)
-    except Exception as e:
-        print(f"\n\n❌ Experiment failed with error:")
-        print(f"   {str(e)}")
-        traceback.print_exc()
-        sys.exit(1)
+    main()
