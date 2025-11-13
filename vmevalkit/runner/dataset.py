@@ -2,7 +2,7 @@
 """
 VMEvalKit Dataset Creation Script
 
-Directly generates the video reasoning evaluation dataset into per-question folder structure
+Directly generates the video reasoning scoring dataset into per-question folder structure
 with <x> task pairs per domain, evenly distributed across all five reasoning domains:
 
 - Chess: Strategic thinking and tactical pattern recognition
@@ -16,72 +16,29 @@ Total: <x> task pairs (<x> per domain)
 Author: VMEvalKit Team
 """
 
-import os
 import sys
 import json
 import random
-import argparse
 import shutil
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, List, Any, Tuple, Callable
+from typing import Dict, List, Any, Tuple
 
-# Add the project root to Python path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
+
+from vmevalkit.utils.constant import DOMAIN_REGISTRY
 
 # Domain Registry: Scalable way to add new domains
 # ============================================================
 # TO ADD A NEW TASK: Simply add an entry here with:
-#   - emoji: Visual icon for the task
 #   - name: Display name
 #   - description: Brief task description
 #   - module: Path to the task module
 #   - create_function: Name of dataset creation function (usually 'create_dataset')
 #   - process_dataset: Lambda to extract pairs from dataset (usually: lambda dataset, num_samples: dataset['pairs'])
 # ============================================================
-DOMAIN_REGISTRY = {
-    'chess': {
-        'emoji': '♟️',
-        'name': 'Chess',
-        'description': 'Strategic thinking and tactical pattern recognition',
-        'module': 'vmevalkit.tasks.chess_task',
-        'create_function': 'create_dataset',
-        'process_dataset': lambda dataset, num_samples: dataset['pairs']
-    },
-    'maze': {
-        'emoji': '🌀',
-        'name': 'Maze',
-        'description': 'Spatial reasoning and navigation planning',
-        'module': 'vmevalkit.tasks.maze_task',
-        'create_function': 'create_dataset',  # Standard function like other domains
-        'process_dataset': lambda dataset, num_samples: dataset['pairs']
-    },
-    'raven': {
-        'emoji': '🧩',
-        'name': 'RAVEN',
-        'description': 'Abstract reasoning and pattern completion',
-        'module': 'vmevalkit.tasks.raven_task',
-        'create_function': 'create_dataset',
-        'process_dataset': lambda dataset, num_samples: dataset['pairs']
-    },
-    'rotation': {
-        'emoji': '🔄',
-        'name': 'Rotation',
-        'description': '3D mental rotation and spatial visualization',
-        'module': 'vmevalkit.tasks.rotation_task.rotation_reasoning',
-        'create_function': 'create_dataset',
-        'process_dataset': lambda dataset, num_samples: dataset['pairs']
-    },
-    'sudoku': {
-        'emoji': '🔢',
-        'name': 'Sudoku',
-        'description': 'Logical reasoning and constraint satisfaction',
-        'module': 'vmevalkit.tasks.sudoku_task.sudoku_reasoning',
-        'create_function': 'create_dataset',
-        'process_dataset': lambda dataset, num_samples: dataset['pairs']
-    }
-}
+
 
 def generate_domain_to_folders(domain_name: str, num_samples: int, 
                               output_base: Path, random_seed: int) -> List[Dict[str, Any]]:
@@ -98,53 +55,41 @@ def generate_domain_to_folders(domain_name: str, num_samples: int,
         List of task pair metadata dictionaries
     """
     
-    # Check if domain exists in registry
     if domain_name not in DOMAIN_REGISTRY:
         raise ValueError(f"Unknown domain: {domain_name}. Available domains: {list(DOMAIN_REGISTRY.keys())}")
     
-    # Get domain configuration
     domain_config = DOMAIN_REGISTRY[domain_name]
     
-    # Create domain-specific task folder
     domain_dir = output_base / f"{domain_name}_task"
     domain_dir.mkdir(parents=True, exist_ok=True)
     
-    # Set seed for this domain generation
     random.seed(random_seed + hash(domain_name))
     
     generated_pairs = []
     
-    # Print generation message with emoji
-    print(f"{domain_config['emoji']} Generating {num_samples} {domain_config['name']} Tasks...")
+    print(f"Generating {num_samples} {domain_config['name']} Tasks...")
     
-    # Dynamic import and function call
     import importlib
     module = importlib.import_module(domain_config['module'])
     create_func = getattr(module, domain_config['create_function'])
     
-    # Call the creation function
     dataset = create_func(num_samples=num_samples)
     
-    # Process the dataset to extract pairs
     if domain_config['process_dataset']:
         pairs = domain_config['process_dataset'](dataset, num_samples)
     else:
-        pairs = dataset['pairs']  # Default assumption
+        pairs = dataset['pairs']
     
-    # Now write each pair directly to its folder
     base_dir = Path(__file__).parent.parent.parent
     
     for idx, pair in enumerate(pairs):
-        # Create unique ID
         pair_id = pair.get("id") or f"{domain_name}_{idx:04d}"
         pair['id'] = pair_id
         pair['domain'] = domain_name
         
-        # Create question directory
         q_dir = domain_dir / pair_id
         q_dir.mkdir(parents=True, exist_ok=True)
         
-        # Copy images with standardized names
         first_rel = pair.get("first_image_path")
         final_rel = pair.get("final_image_path")
         
@@ -153,7 +98,6 @@ def generate_domain_to_folders(domain_name: str, num_samples: int,
             dst_first = q_dir / "first_frame.png"
             if src_first.exists():
                 shutil.copyfile(src_first, dst_first)
-                # Update path to relative from questions folder
                 pair['first_image_path'] = str(Path(domain_name + "_task") / pair_id / "first_frame.png")
                 
         if final_rel:
@@ -161,14 +105,11 @@ def generate_domain_to_folders(domain_name: str, num_samples: int,
             dst_final = q_dir / "final_frame.png"
             if src_final.exists():
                 shutil.copyfile(src_final, dst_final)
-                # Update path to relative from questions folder
                 pair['final_image_path'] = str(Path(domain_name + "_task") / pair_id / "final_frame.png")
         
-        # Write prompt
         prompt_text = pair.get("prompt", "")
         (q_dir / "prompt.txt").write_text(prompt_text)
         
-        # Write metadata with creation timestamp
         metadata_path = q_dir / "question_metadata.json"
         pair['created_at'] = datetime.now().isoformat() + 'Z'
         with open(metadata_path, 'w') as f:
@@ -180,35 +121,41 @@ def generate_domain_to_folders(domain_name: str, num_samples: int,
     
     return generated_pairs
 
-def create_vmeval_dataset_direct(pairs_per_domain: int = 50, random_seed: int = 42) -> Tuple[Dict[str, Any], str]:
+def create_vmeval_dataset_direct(pairs_per_domain: int = 50, random_seed: int = 42, 
+                                 selected_tasks: List[str] = None) -> Tuple[Dict[str, Any], str]:
     """
     Create VMEvalKit Dataset directly into per-question folder structure.
     
     Args:
         pairs_per_domain: Number of task pairs to generate per domain (default: 50)
         random_seed: Random seed for reproducible generation (default: 42)
+        selected_tasks: List of task names to generate. If None, generate all tasks.
         
     Returns:
         Tuple of (dataset dictionary, path to questions directory)
     """
     
-    num_domains = len(DOMAIN_REGISTRY)
+    assert selected_tasks is not None, "selected_tasks must be provided"
+    invalid_tasks = [task for task in selected_tasks if task not in DOMAIN_REGISTRY]
+    if invalid_tasks:
+        raise ValueError(f"Unknown tasks: {invalid_tasks}. Available tasks: {list(DOMAIN_REGISTRY.keys())}")
+    domains_to_generate = selected_tasks
+    
+    num_domains = len(domains_to_generate)
     total_pairs = pairs_per_domain * num_domains
     
     print("=" * 70)
     print("🚀 VMEvalKit Dataset Creation - Direct Folder Generation")
-    print(f"🎯 Total target: {total_pairs} task pairs across {num_domains} domains")
+    print(f"🎯 Total target: {total_pairs} task pairs across {num_domains} domain(s)")
     print("=" * 70)
     
-    # Setup output directory
     base_dir = Path(__file__).parent.parent.parent
     output_base = base_dir / "data" / "questions"
     output_base.mkdir(parents=True, exist_ok=True)
     
-    # Equal allocation across all registered domains
     allocation = {
         domain: pairs_per_domain 
-        for domain in DOMAIN_REGISTRY.keys()
+        for domain in domains_to_generate
     }
     
     print(f"📈 Task Distribution:")
@@ -217,18 +164,15 @@ def create_vmeval_dataset_direct(pairs_per_domain: int = 50, random_seed: int = 
         print(f"   {domain.title():10}: {count:3d} task pairs")
     print()
     
-    # Generate each domain directly to folders
     all_pairs = []
     
     for domain_name, num_samples in allocation.items():
         pairs = generate_domain_to_folders(domain_name, num_samples, output_base, random_seed)
         all_pairs.extend(pairs)
     
-    # Shuffle all pairs for diversity
     random.seed(random_seed)
     random.shuffle(all_pairs)
     
-    # Create master dataset from the generated folders
     creation_timestamp = datetime.now().isoformat() + 'Z'
     dataset = {
         "name": "vmeval_dataset",
@@ -248,12 +192,12 @@ def create_vmeval_dataset_direct(pairs_per_domain: int = 50, random_seed: int = 
                     "description": config['description']
                 }
                 for domain, config in DOMAIN_REGISTRY.items()
+                if domain in domains_to_generate
             }
         },
         "pairs": all_pairs
     }
     
-    # Save master JSON
     json_path = output_base / "vmeval_dataset.json"
     with open(json_path, 'w') as f:
         json.dump(dataset, f, indent=2, default=str)
@@ -270,10 +214,8 @@ def read_dataset_from_folders(base_dir: Path = None) -> Dict[str, Any]:
         Dataset dictionary constructed from folder contents
     """
     
-    if base_dir is None:
-        base_dir = Path(__file__).parent.parent.parent / "data" / "questions"
-    else:
-        base_dir = Path(base_dir)
+    assert base_dir is not None, "base_dir must be provided"
+    base_dir = Path(base_dir)
     
     all_pairs = []
     domains = list(DOMAIN_REGISTRY.keys())
@@ -283,17 +225,14 @@ def read_dataset_from_folders(base_dir: Path = None) -> Dict[str, Any]:
         if not domain_dir.exists():
             continue
             
-        # Read all question folders in this domain
         for q_dir in sorted(domain_dir.iterdir()):
             if not q_dir.is_dir():
                 continue
                 
-            # Read metadata if exists
             metadata_path = q_dir / "question_metadata.json"
             if metadata_path.exists():
                 with open(metadata_path, 'r') as f:
                     pair = json.load(f)
-                    # Ensure domain is tagged
                     pair['domain'] = domain
                     all_pairs.append(pair)
     
@@ -368,7 +307,6 @@ def print_dataset_summary(dataset: Dict[str, Any]):
         print(f"   {domain.title():10}: {info['count']:2d} pairs ({percentage:4.1f}%) - {info['description']}")
     print()
     
-    # Difficulty distribution
     difficulties = {}
     categories = {}
     for pair in dataset['pairs']:
@@ -393,42 +331,5 @@ def print_dataset_summary(dataset: Dict[str, Any]):
         print(f"   ... and {len(categories) - 10} more categories")
     print()
 
-def main():
-    """Generate VMEvalKit Dataset directly into per-question folder structure."""
-
-    parser = argparse.ArgumentParser(description="Create VMEvalKit dataset directly in per-question folders")
-    parser.add_argument("--pairs-per-domain", type=int, default=50, help="Number of task pairs to generate per domain")
-    parser.add_argument("--random-seed", type=int, default=42, help="Random seed for reproducibility")
-    parser.add_argument("--read-only", action="store_true", help="Only read existing dataset from folders, don't generate")
-    args = parser.parse_args()
-
-    if args.read_only:
-        # Just read existing dataset from folders
-        print("=" * 70)
-        print("📂 Reading existing dataset from folder structure...")
-        dataset = read_dataset_from_folders()
-        print_dataset_summary(dataset)
-        print("=" * 70)
-        return
-
-    # Clean option removed: artifacts are preserved between runs
-    
-    # Generate dataset directly to folders
-    dataset, questions_dir = create_vmeval_dataset_direct(
-        pairs_per_domain=args.pairs_per_domain, 
-        random_seed=args.random_seed
-    )
-    
-    # Print comprehensive summary
-    print_dataset_summary(dataset)
-    
-    print(f"💾 Master dataset JSON saved: {questions_dir}/vmeval_dataset.json")
-    print(f"📁 Questions generated in: {questions_dir}")
-    print(f"🔗 Per-question folders: {questions_dir}/<domain>_task/<question_id>/")
-    print()
-    print("🎉 VMEvalKit Dataset ready for video reasoning evaluation!")
-    print("🚀 Use `vmevalkit/runner/inference.py` to evaluate models on this dataset")
-    print("=" * 70)
-
-if __name__ == "__main__":
-    main()
+# CLI functionality has been moved to examples/create_dataset.py
+# This module now provides pure functions for dataset creation
