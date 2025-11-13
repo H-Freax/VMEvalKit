@@ -174,11 +174,6 @@ class MorphicService:
             success = result.returncode == 0
             error_msg = result.stderr if result.returncode != 0 else None
             
-            # Check if output file was created at the specified path
-            if success and not output_path.exists():
-                success = False
-                error_msg = f"Video file was not generated at expected path: {output_path}"
-            
         except subprocess.TimeoutExpired:
             success = False
             error_msg = "Morphic inference timed out (exceeded 15 minutes)"
@@ -231,49 +226,14 @@ class MorphicService:
         Returns:
             Dictionary with generation results and metadata
         """
-        # Validate inputs
+        # Convert to Path objects (let Python/PyTorch raise errors if files don't exist)
         image_path = Path(image_path)
-        if not image_path.exists():
-            return {
-                "success": False,
-                "video_path": None,
-                "error": f"Input image not found: {image_path}",
-                "duration_seconds": 0,
-                "generation_id": f"morphic_error_{int(time.time())}",
-                "model": self.model_id,
-                "status": "failed",
-                "metadata": {"text_prompt": text_prompt, "image_path": str(image_path)},
-            }
         
-        # final_image_path is required for Morphic
+        # final_image_path is required for Morphic - check only once at the beginning
         if not final_image_path:
-            return {
-                "success": False,
-                "video_path": None,
-                "error": "Morphic requires final_image_path parameter",
-                "duration_seconds": 0,
-                "generation_id": f"morphic_error_{int(time.time())}",
-                "model": self.model_id,
-                "status": "failed",
-                "metadata": {"text_prompt": text_prompt, "image_path": str(image_path)},
-            }
+            raise ValueError("Morphic requires final_image_path parameter")
         
         final_image_path = Path(final_image_path)
-        if not final_image_path.exists():
-            return {
-                "success": False,
-                "video_path": None,
-                "error": f"Final image not found: {final_image_path}",
-                "duration_seconds": 0,
-                "generation_id": f"morphic_error_{int(time.time())}",
-                "model": self.model_id,
-                "status": "failed",
-                "metadata": {
-                    "text_prompt": text_prompt,
-                    "image_path": str(image_path),
-                    "final_image_path": str(final_image_path),
-                },
-            }
         
         # Run inference
         result = self._run_morphic_inference(
@@ -290,6 +250,8 @@ class MorphicService:
             if old_path.exists():
                 old_path.rename(new_path)
                 result["video_path"] = str(new_path)
+            else:
+                print(f"Warning: old_path does not exist: {old_path}")
         
         return result
 
@@ -338,24 +300,12 @@ class MorphicWrapper(ModelWrapper):
         Returns:
             Dictionary with generation results
         """
-        # Extract final_image_path from question_data
+        # Extract final_image_path from question_data (check only once at the beginning)
         question_data = kwargs.get('question_data', {})
         final_image_path = question_data.get('final_image_path')
         
         if not final_image_path:
-            return {
-                "success": False,
-                "video_path": None,
-                "error": "Morphic requires final_image_path in question_data",
-                "duration_seconds": 0,
-                "generation_id": f"morphic_error_{int(time.time())}",
-                "model": self.model,
-                "status": "failed",
-                "metadata": {
-                    "text_prompt": text_prompt,
-                    "image_path": str(image_path),
-                },
-            }
+            raise ValueError("Morphic requires final_image_path in question_data")
         
         # Remove question_data from kwargs before passing to service
         service_kwargs = {k: v for k, v in kwargs.items() if k != 'question_data'}
