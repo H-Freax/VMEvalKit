@@ -1,13 +1,13 @@
 DOMAIN_REGISTRY = {
     'videothinkbench': {
         'name': 'VideoThinkBench',
-        'description': 'Complete VideoThinkBench dataset with all reasoning tasks',
+        'description': 'Complete VideoThinkBench dataset with all reasoning tasks (~4.1k tasks)',
         'module': 'vmevalkit.tasks.videothinkbench_task',
         'create_function': 'create_dataset',
         'process_dataset': lambda dataset, num_samples: dataset['pairs'],
         'hf': True,
         'hf_meta': True,  # Special flag for meta-task that downloads all subsets
-        'hf_subsets': ['arc_agi_2', 'eyeballing_puzzles', 'visual_puzzles']
+        'hf_subsets': ['arc_agi_2', 'eyeballing_puzzles', 'visual_puzzles', 'mazes', 'text_centric_tasks']
     },
     'chess': {
         'name': 'Chess',
@@ -81,6 +81,34 @@ DOMAIN_REGISTRY = {
         'hf': True,
         'hf_dataset': 'OpenMOSS-Team/VideoThinkBench',
         'hf_subset': 'Visual_Puzzles',
+        'hf_split': 'test',
+        'hf_prompt_column': 'prompt',
+        'hf_image_column': 'image',
+        'hf_solution_image_column': 'solution_image',
+    },
+    'mazes': {
+        'name': 'Mazes',
+        'description': 'Path-finding and navigation challenges',
+        'module': 'vmevalkit.tasks.mazes_task',
+        'create_function': 'create_dataset',
+        'process_dataset': lambda dataset, num_samples: dataset['pairs'],
+        'hf': True,
+        'hf_dataset': 'OpenMOSS-Team/VideoThinkBench',
+        'hf_subset': 'Mazes',
+        'hf_split': 'test',
+        'hf_prompt_column': 'prompt',
+        'hf_image_column': 'image',
+        'hf_solution_image_column': 'solution_image',
+    },
+    'text_centric_tasks': {
+        'name': 'Text Centric Tasks',
+        'description': 'Mathematical reasoning and multimodal understanding',
+        'module': 'vmevalkit.tasks.text_centric_tasks_task',
+        'create_function': 'create_dataset',
+        'process_dataset': lambda dataset, num_samples: dataset['pairs'],
+        'hf': True,
+        'hf_dataset': 'OpenMOSS-Team/VideoThinkBench',
+        'hf_subset': 'Text_Centric_Tasks',
         'hf_split': 'test',
         'hf_prompt_column': 'prompt',
         'hf_image_column': 'image',
