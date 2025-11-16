@@ -38,7 +38,7 @@ class SlidingPuzzleTaskPair:
     task_category: str              # "SlidingPuzzle"
     puzzle_data: Dict[str, Any] = None  # Metadata
     difficulty: str = ""            # "easy", "medium", "hard"
-    puzzle_size: Tuple[int, int] = (0, 0)  # (3, 3) or (4, 4)
+    puzzle_size: Tuple[int, int] = (0, 0)  # (3, 3), (4, 4), or (5, 5)
     initial_state: List[List[int]] = None  # The near-complete state matrix
     goal_state: List[List[int]] = None    # The complete solution matrix
     solution_length: int = 0        # Number of moves needed (1-3)
@@ -74,7 +74,7 @@ class SlidingPuzzleGenerator:
         Create the goal state (complete puzzle).
         
         Args:
-            size: Puzzle size (3 or 4)
+            size: Puzzle size (3, 4, or 5)
             
         Returns:
             2D list representing the goal state
@@ -167,8 +167,8 @@ class SlidingPuzzleGenerator:
         Generate a near-complete puzzle by starting from goal state and making N moves.
         
         Args:
-            size: Puzzle size (3 or 4)
-            num_moves: Number of moves to make from goal state (1-3)
+            size: Puzzle size (3, 4, or 5)
+            num_moves: Number of moves to make from goal state (1-2)
             seed: Random seed for reproducibility
             
         Returns:
@@ -217,7 +217,7 @@ class SlidingPuzzleGenerator:
         
         Args:
             puzzle: 2D list representing puzzle state
-            size: Puzzle size (3 or 4)
+            size: Puzzle size (3, 4, or 5)
             output_path: Path to save the image
             title: Optional title text
         """
@@ -240,6 +240,14 @@ class SlidingPuzzleGenerator:
         tile_size = 0.9  # Slightly smaller than 1 to show grid lines
         margin = (1 - tile_size) / 2
         
+        # Adjust font size based on puzzle size
+        if size == 3:
+            fontsize = 24
+        elif size == 4:
+            fontsize = 18
+        else:  # size == 5
+            fontsize = 14
+        
         # Draw tiles
         for i in range(size):
             for j in range(size):
@@ -260,7 +268,7 @@ class SlidingPuzzleGenerator:
                     ax.add_patch(rect)
                     # Add number
                     ax.text(x + tile_size/2, y + tile_size/2, str(value),
-                           ha='center', va='center', fontsize=24, 
+                           ha='center', va='center', fontsize=fontsize, 
                            color='white', weight='bold')
         
         # Add title if provided
@@ -289,15 +297,15 @@ class SlidingPuzzleGenerator:
             self.rng.seed(seed)
         
         # Determine puzzle size and number of moves based on difficulty
-        # Easy = 3x3 (2 moves), Medium = 4x4 (2 moves)
+        # Easy = 3x3 (2 moves), Medium = 4x4 (2 moves), Hard = 5x5 (2 moves)
         if difficulty == "easy":
             size = 3
             num_moves = 2
         elif difficulty == "medium":
             size = 4
             num_moves = 2
-        else:  # hard - fallback to medium (4x4, 2 moves)
-            size = 4
+        else:  # hard = 5x5 (2 moves)
+            size = 5
             num_moves = 2
         
         # Generate near-complete puzzle
@@ -348,27 +356,31 @@ class SlidingPuzzleGenerator:
 def create_dataset(num_samples: int = 50, difficulty_distribution: Optional[Dict[str, float]] = None) -> Dict[str, Any]:
     """
     Create sliding puzzle dataset with duplicate state detection.
-    Supports both 1-step and 2-step moves for 3×3 and 4×4 puzzles.
+    Supports both 1-step and 2-step moves for 3×3, 4×4, and 5×5 puzzles.
     
     Args:
         num_samples: Total number of task pairs to generate
         difficulty_distribution: Optional dict like {
-            "easy_1step": 0.25,  # 3×3, 1 move
-            "easy_2step": 0.25,  # 3×3, 2 moves
-            "medium_1step": 0.25,  # 4×4, 1 move
-            "medium_2step": 0.25   # 4×4, 2 moves
+            "easy_1step": 0.166,   # 3×3, 1 move
+            "easy_2step": 0.166,   # 3×3, 2 moves
+            "medium_1step": 0.166, # 4×4, 1 move
+            "medium_2step": 0.166, # 4×4, 2 moves
+            "hard_1step": 0.166,   # 5×5, 1 move
+            "hard_2step": 0.166    # 5×5, 2 moves
         }
         
     Returns:
         Dictionary with 'pairs' key containing list of SlidingPuzzleTaskPair
     """
     if difficulty_distribution is None:
-        # Default distribution - equal distribution across all 4 types
+        # Default distribution - equal distribution across all 6 types
         difficulty_distribution = {
-            "easy_1step": 0.25,   # 3×3, 1 move
-            "easy_2step": 0.25,    # 3×3, 2 moves
-            "medium_1step": 0.25, # 4×4, 1 move
-            "medium_2step": 0.25  # 4×4, 2 moves
+            "easy_1step": 1/6,   # 3×3, 1 move
+            "easy_2step": 1/6,   # 3×3, 2 moves
+            "medium_1step": 1/6, # 4×4, 1 move
+            "medium_2step": 1/6, # 4×4, 2 moves
+            "hard_1step": 1/6,   # 5×5, 1 move
+            "hard_2step": 1/6    # 5×5, 2 moves
         }
     
     print(f"🧩 Creating Sliding Puzzle Dataset")
@@ -385,17 +397,21 @@ def create_dataset(num_samples: int = 50, difficulty_distribution: Optional[Dict
         return tuple(tuple(row) for row in state)
     
     # Calculate number of samples per type
-    easy_1step_count = int(num_samples * difficulty_distribution.get("easy_1step", 0.25))
-    easy_2step_count = int(num_samples * difficulty_distribution.get("easy_2step", 0.25))
-    medium_1step_count = int(num_samples * difficulty_distribution.get("medium_1step", 0.25))
-    medium_2step_count = num_samples - easy_1step_count - easy_2step_count - medium_1step_count
+    easy_1step_count = int(num_samples * difficulty_distribution.get("easy_1step", 1/6))
+    easy_2step_count = int(num_samples * difficulty_distribution.get("easy_2step", 1/6))
+    medium_1step_count = int(num_samples * difficulty_distribution.get("medium_1step", 1/6))
+    medium_2step_count = int(num_samples * difficulty_distribution.get("medium_2step", 1/6))
+    hard_1step_count = int(num_samples * difficulty_distribution.get("hard_1step", 1/6))
+    hard_2step_count = num_samples - easy_1step_count - easy_2step_count - medium_1step_count - medium_2step_count - hard_1step_count
     
     print(f"   3×3, 1 move: {easy_1step_count}")
     print(f"   3×3, 2 moves: {easy_2step_count}")
     print(f"   4×4, 1 move: {medium_1step_count}")
     print(f"   4×4, 2 moves: {medium_2step_count}")
+    print(f"   5×5, 1 move: {hard_1step_count}")
+    print(f"   5×5, 2 moves: {hard_2step_count}")
     
-    # Generate tasks for all 4 types
+    # Generate tasks for all 6 types
     task_idx = 0
     max_retries_per_task = 50
     max_total_retries = 1000
@@ -406,6 +422,8 @@ def create_dataset(num_samples: int = 50, difficulty_distribution: Optional[Dict
         (3, 2, "easy_2step", easy_2step_count),
         (4, 1, "medium_1step", medium_1step_count),
         (4, 2, "medium_2step", medium_2step_count),
+        (5, 1, "hard_1step", hard_1step_count),
+        (5, 2, "hard_2step", hard_2step_count),
     ]
     
     for size, num_moves, difficulty_name, count in task_types:
