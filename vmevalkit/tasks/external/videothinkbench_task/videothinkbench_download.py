@@ -7,7 +7,8 @@ Downloads all VideoThinkBench subsets from HuggingFace.
 Author: VMEvalKit Team
 """
 
-from typing import Dict, Any, List
+from typing import Dict, Any
+from datasets import load_dataset
 
 
 def create_dataset(num_samples: int = None) -> Dict[str, Any]:
@@ -26,22 +27,20 @@ def create_dataset(num_samples: int = None) -> Dict[str, Any]:
     Returns:
         Dataset dictionary with 'pairs' key containing all task data
     """
-    from datasets import load_dataset
-    
     print(f"📥 Downloading all VideoThinkBench tasks from HuggingFace...")
     print(f"   This includes all subsets: ARC AGI 2, Eyeballing Puzzles, Visual Puzzles, Text Centric Tasks")
     
     subsets = [
-        ('ARC_AGI_2', 'arc_agi_2'),
-        ('Eyeballing_Puzzles', 'eyeballing_puzzles'),
-        ('Visual_Puzzles', 'visual_puzzles'),
-        ('Text_Centric_Tasks', 'text_centric_tasks')
+        ('ARC_AGI_2', 'arc_agi_2', 'ARC AGI 2'),
+        ('Eyeballing_Puzzles', 'eyeballing_puzzles', 'Eyeballing Puzzles'),
+        ('Visual_Puzzles', 'visual_puzzles', 'Visual Puzzles'),
+        ('Text_Centric_Tasks', 'text_centric_tasks', 'Text Centric Tasks')
     ]
     
     all_pairs = []
     
-    for hf_subset_name, domain_name in subsets:
-        print(f"\n   📦 Loading {hf_subset_name}...")
+    for hf_subset_name, domain_name, display_name in subsets:
+        print(f"\n   📦 Loading {display_name}...")
         dataset = load_dataset('OpenMOSS-Team/VideoThinkBench', hf_subset_name, split='test')
         
         for idx, item in enumerate(dataset):
@@ -64,7 +63,7 @@ def create_dataset(num_samples: int = None) -> Dict[str, Any]:
             
             all_pairs.append(pair)
         
-        print(f"      ✅ Loaded {len([p for p in all_pairs if p['domain'] == domain_name])} tasks from {hf_subset_name}")
+        print(f"      ✅ Loaded {len([p for p in all_pairs if p['domain'] == domain_name])} tasks from {display_name}")
     
     print(f"\n   ✅ Total: Downloaded {len(all_pairs)} tasks from all VideoThinkBench subsets")
     
