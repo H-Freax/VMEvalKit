@@ -348,19 +348,27 @@ class SlidingPuzzleGenerator:
 def create_dataset(num_samples: int = 50, difficulty_distribution: Optional[Dict[str, float]] = None) -> Dict[str, Any]:
     """
     Create sliding puzzle dataset with duplicate state detection.
+    Supports both 1-step and 2-step moves for 3×3 and 4×4 puzzles.
     
     Args:
         num_samples: Total number of task pairs to generate
-        difficulty_distribution: Optional dict like {"easy": 0.5, "medium": 0.5}
+        difficulty_distribution: Optional dict like {
+            "easy_1step": 0.25,  # 3×3, 1 move
+            "easy_2step": 0.25,  # 3×3, 2 moves
+            "medium_1step": 0.25,  # 4×4, 1 move
+            "medium_2step": 0.25   # 4×4, 2 moves
+        }
         
     Returns:
         Dictionary with 'pairs' key containing list of SlidingPuzzleTaskPair
     """
     if difficulty_distribution is None:
-        # Default distribution - only easy and medium
+        # Default distribution - equal distribution across all 4 types
         difficulty_distribution = {
-            "easy": 0.5,
-            "medium": 0.5
+            "easy_1step": 0.25,   # 3×3, 1 move
+            "easy_2step": 0.25,    # 3×3, 2 moves
+            "medium_1step": 0.25, # 4×4, 1 move
+            "medium_2step": 0.25  # 4×4, 2 moves
         }
     
     print(f"🧩 Creating Sliding Puzzle Dataset")
@@ -376,19 +384,31 @@ def create_dataset(num_samples: int = 50, difficulty_distribution: Optional[Dict
     def state_to_tuple(state):
         return tuple(tuple(row) for row in state)
     
-    # Calculate number of samples per difficulty
-    easy_count = int(num_samples * difficulty_distribution.get("easy", 0.5))
-    medium_count = num_samples - easy_count
+    # Calculate number of samples per type
+    easy_1step_count = int(num_samples * difficulty_distribution.get("easy_1step", 0.25))
+    easy_2step_count = int(num_samples * difficulty_distribution.get("easy_2step", 0.25))
+    medium_1step_count = int(num_samples * difficulty_distribution.get("medium_1step", 0.25))
+    medium_2step_count = num_samples - easy_1step_count - easy_2step_count - medium_1step_count
     
-    print(f"   Easy (3×3, 2 moves): {easy_count}")
-    print(f"   Medium (4×4, 2 moves): {medium_count}")
+    print(f"   3×3, 1 move: {easy_1step_count}")
+    print(f"   3×3, 2 moves: {easy_2step_count}")
+    print(f"   4×4, 1 move: {medium_1step_count}")
+    print(f"   4×4, 2 moves: {medium_2step_count}")
     
-    # Generate tasks - only easy and medium
+    # Generate tasks for all 4 types
     task_idx = 0
-    max_retries_per_task = 50  # Maximum retries per task to avoid infinite loops
-    max_total_retries = 1000  # Maximum total retries to avoid infinite loops
+    max_retries_per_task = 50
+    max_total_retries = 1000
     
-    for difficulty, count in [("easy", easy_count), ("medium", medium_count)]:
+    # Define task types: (size, num_moves, difficulty_name)
+    task_types = [
+        (3, 1, "easy_1step", easy_1step_count),
+        (3, 2, "easy_2step", easy_2step_count),
+        (4, 1, "medium_1step", medium_1step_count),
+        (4, 2, "medium_2step", medium_2step_count),
+    ]
+    
+    for size, num_moves, difficulty_name, count in task_types:
         generated = 0
         total_retries = 0
         consecutive_failures = 0
@@ -396,11 +416,47 @@ def create_dataset(num_samples: int = 50, difficulty_distribution: Optional[Dict
         while generated < count and total_retries < max_total_retries:
             task_id = f"sliding_puzzle_{task_idx:04d}"
             
-            # Try to generate a unique task
-            pair = generator.generate_single_task(
-                task_id=task_id,
-                difficulty=difficulty,
-                seed=task_idx * 1000 + total_retries  # Use total_retries to vary seed
+            # Generate puzzle with specific size and moves
+            initial_state, solution_length = generator.generate_near_complete_puzzle(
+                size, num_moves, seed=task_idx * 1000 + total_retries
+            )
+            
+            # Create goal state
+            goal_state = generator.create_goal_state(size)
+            
+            # Render images
+            first_path = Path(generator.temp_dir) / f"{task_id}_first.png"
+            final_path = Path(generator.temp_dir) / f"{task_id}_final.png"
+            
+            generator.render_puzzle(initial_state, size, first_path)
+            generator.render_puzzle(goal_state, size, final_path)
+            
+            # Generate prompt
+            actual_moves = solution_length
+            prompt = PROMPTS[DEFAULT_PROMPT_INDEX].format(
+                num_moves=actual_moves,
+                plural="s" if actual_moves > 1 else "",
+                is_are="are" if actual_moves > 1 else "is"
+            )
+            
+            # Create task pair
+            pair = SlidingPuzzleTaskPair(
+                id=task_id,
+                prompt=prompt,
+                first_image_path=str(first_path),
+                final_image_path=str(final_path),
+                task_category="SlidingPuzzle",
+                puzzle_data={
+                    "generation_method": "near_complete",
+                    "solution_length": solution_length,
+                    "num_moves_from_complete": num_moves
+                },
+                difficulty=difficulty_name,
+                puzzle_size=(size, size),
+                initial_state=initial_state,
+                goal_state=goal_state,
+                solution_length=solution_length,
+                num_moves_from_complete=num_moves
             )
             
             # Check if state is unique
@@ -411,20 +467,18 @@ def create_dataset(num_samples: int = 50, difficulty_distribution: Optional[Dict
                 pairs.append(pair)
                 generated += 1
                 task_idx += 1
-                consecutive_failures = 0  # Reset failure count on success
+                consecutive_failures = 0
             else:
                 total_retries += 1
                 consecutive_failures += 1
                 
-                # If we've tried many times without finding a new state, 
-                # we've likely exhausted all possibilities
                 if consecutive_failures >= max_retries_per_task:
-                    print(f"   ⚠️  Warning: Reached maximum unique states for {difficulty}. "
+                    print(f"   ⚠️  Warning: Reached maximum unique states for {difficulty_name}. "
                           f"Generated {generated}/{count} unique tasks.")
                     break
         
         if generated < count:
-            print(f"   ⚠️  Warning: Only generated {generated}/{count} unique {difficulty} tasks "
+            print(f"   ⚠️  Warning: Only generated {generated}/{count} unique {difficulty_name} tasks "
                   f"(possible states exhausted)")
     
     print(f"✅ Generated {len(pairs)} unique sliding puzzle tasks")
