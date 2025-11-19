@@ -268,7 +268,7 @@ ORIGINAL USAGE (Backward Compatible):
   python data/s3_sync.py --date 202411181530
   
   # Upload and log version
-  python data/s3_sync.py --log
+  python data/s3_sync.py
 
 NEW COMMANDS:
 
@@ -319,7 +319,6 @@ CREDENTIALS:
     
     # Add backward-compatible flags at top level (for original usage)
     parser.add_argument('--date', help='Date folder (YYYYMMDDHHMM) - for backward compatibility')
-    parser.add_argument('--log', action='store_true', help='Log version after upload - for backward compatibility')
     
     subparsers = parser.add_subparsers(dest='command', help='Command to execute')
     
@@ -343,7 +342,6 @@ CREDENTIALS:
     # Sync command (for explicit sync usage)
     sync_parser = subparsers.add_parser('sync', help='Sync data folder to S3')
     sync_parser.add_argument('--date', help='Date folder (YYYYMMDDHHMM)')
-    sync_parser.add_argument('--log', action='store_true', help='Log version after upload')
     
     args = parser.parse_args()
     
@@ -351,7 +349,7 @@ CREDENTIALS:
     # This preserves the original design where `python data/s3_sync.py` just uploads
     if args.command is None:
         if args.date or args.log:
-            # Original usage: python data/s3_sync.py --date 202411181530 --log
+            # Original usage: python data/s3_sync.py --date 202411181530
             print("📦 Running sync (original usage)")
         else:
             # Default: python data/s3_sync.py
@@ -379,13 +377,6 @@ CREDENTIALS:
         elif args.command == 'sync':
             s3_uri = sync_to_s3(date_prefix=args.date)
             
-            # Log version if requested (original feature)
-            if args.log:
-                from data_logging.version_tracker import log_version
-                version = input("Version number (e.g. 1.0): ")
-                # Extract stats from sync result
-                log_version(version, s3_uri, {'change': 'Data sync'})
-                print(f"✅ Version {version} logged")
             
             return 0
             
