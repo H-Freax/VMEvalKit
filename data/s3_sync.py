@@ -267,7 +267,7 @@ ORIGINAL USAGE (Backward Compatible):
   # Upload with specific date prefix
   python data/s3_sync.py --date 202411181530
   
-  # Upload and log version
+  # Upload to S3
   python data/s3_sync.py
 
 NEW COMMANDS:
@@ -348,16 +348,16 @@ CREDENTIALS:
     # BACKWARD COMPATIBILITY: Default to sync if no command provided (original behavior)
     # This preserves the original design where `python data/s3_sync.py` just uploads
     if args.command is None:
-        if args.date or args.log:
+        if args.date:
             # Original usage: python data/s3_sync.py --date 202411181530
             print("📦 Running sync (original usage)")
         else:
             # Default: python data/s3_sync.py
             print("📦 Running default sync (use --help to see new commands)")
         
-        # Use sync command with the provided or default date/log values
+        # Use sync command with the provided or default date values
         args.command = 'sync'
-        # args.date and args.log are already set from top-level parser
+        # args.date is already set from top-level parser
     
     # Execute command with error handling
     try:
