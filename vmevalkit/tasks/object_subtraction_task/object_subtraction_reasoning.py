@@ -282,7 +282,7 @@ class RuleGenerator:
                         prompt_index: int = 0) -> Tuple[Dict[str, Any], str]:
         """
         Generate Level 1 rule: Remove objects by explicit visual attributes.
-        Supports: color, shape, largest, smallest
+        Supports: color, shape only (size-based rules removed)
         
         Args:
             objects: List of objects
@@ -291,9 +291,8 @@ class RuleGenerator:
         Returns:
             (rule_dict, prompt_text)
         """
-        # Choose a removal criterion (color, shape, largest, or smallest)
-        # Level 1 size-based rules are simpler: can remove all objects with max/min size
-        criterion_type = self.rng.choice(["color", "shape", "size"])
+        # Choose a removal criterion (color or shape only)
+        criterion_type = self.rng.choice(["color", "shape"])
         
         if criterion_type == "color":
             # Find all unique colors
@@ -317,20 +316,8 @@ class RuleGenerator:
                 "target_object_ids": target_object_ids
             }
             
-            # Generate prompt
-            prompt = PROMPTS_L1[prompt_index % len(PROMPTS_L1)]
-            # Replace color in prompt if needed
-            if "red" in prompt.lower():
-                prompt = prompt.replace("red", remove_color)
-            elif "blue" in prompt.lower():
-                prompt = prompt.replace("blue", remove_color)
-            elif "green" in prompt.lower():
-                prompt = prompt.replace("green", remove_color)
-            elif "yellow" in prompt.lower():
-                prompt = prompt.replace("yellow", remove_color)
-            else:
-                # Use generic prompt
-                prompt = f"Remove all {remove_color} objects from the scene. Do not do anything to other objects."
+            # Generate prompt - always use generic format
+            prompt = f"Remove all {remove_color} objects from the scene. Do not do anything to other objects."
         
         elif criterion_type == "shape":
             # Find all unique shapes
@@ -350,150 +337,6 @@ class RuleGenerator:
             # Generate prompt
             shape_name = remove_shape.capitalize()
             prompt = f"Remove all {shape_name.lower()} objects from the scene. Do not do anything to other objects."
-        
-        else:  # size (largest or smallest)
-            # Level 1 size rules: ensure visual distinction for largest/smallest
-            # The selected object must be SIGNIFICANTLY larger/smaller than others
-            sizes = [obj["size"] for obj in objects]
-            max_size = max(sizes)
-            min_size = min(sizes)
-            
-            # Minimum visual distinction threshold (in pixels)
-            # This ensures the largest/smallest object is clearly visible and distinguishable
-            # Using 12 pixels (about 40% of the 20-40 size range) for VERY clear visual distinction
-            # This makes it obvious which object is largest/smallest
-            MIN_SIZE_DIFFERENCE = 12  # At least 12 pixels difference for very clear visual distinction
-            
-            # If all objects have the same size, fallback to color or shape
-            if max_size == min_size:
-                # All objects same size, fallback to color
-                colors = list(set(obj["color"] for obj in objects))
-                if len(colors) >= 2:
-                    criterion_type = "color"
-                else:
-                    # Fallback to shape
-                    criterion_type = "shape"
-                # Recursively call with new criterion type (but avoid infinite loop by not choosing size again)
-                if criterion_type == "color":
-                    remove_color = self.rng.choice(colors)
-                    target_object_ids = [obj["id"] for obj in objects if obj["color"] == remove_color]
-                    rule = {
-                        "level": "L1",
-                        "rule_type": "color",
-                        "remove_color": remove_color,
-                        "target_object_ids": target_object_ids
-                    }
-                    prompt = f"Remove all {remove_color} objects from the scene. Do not do anything to other objects."
-                else:
-                    shapes = list(set(obj["shape"] for obj in objects))
-                    remove_shape = self.rng.choice(shapes)
-                    target_object_ids = [obj["id"] for obj in objects if obj["shape"] == remove_shape]
-                    rule = {
-                        "level": "L1",
-                        "rule_type": "shape",
-                        "remove_shape": remove_shape,
-                        "target_object_ids": target_object_ids
-                    }
-                    shape_name = remove_shape.capitalize()
-                    prompt = f"Remove all {shape_name.lower()} objects from the scene. Do not do anything to other objects."
-            else:
-                # Check if we can create visually distinct largest/smallest
-                # Calculate size differences to ensure visual clarity
-                sorted_sizes = sorted(set(sizes))
-                size_gap = max_size - min_size
-                
-                # Check if largest is visually distinct
-                largest_distinct = False
-                if len(sorted_sizes) >= 2:
-                    # Largest must be at least MIN_SIZE_DIFFERENCE pixels larger than second largest
-                    second_largest = sorted_sizes[-2]
-                    largest_gap = max_size - second_largest
-                    if largest_gap >= MIN_SIZE_DIFFERENCE:
-                        largest_distinct = True
-                
-                # Check if smallest is visually distinct
-                smallest_distinct = False
-                if len(sorted_sizes) >= 2:
-                    # Smallest must be at least MIN_SIZE_DIFFERENCE pixels smaller than second smallest
-                    second_smallest = sorted_sizes[1]
-                    smallest_gap = second_smallest - min_size
-                    if smallest_gap >= MIN_SIZE_DIFFERENCE:
-                        smallest_distinct = True
-                
-                # If neither is visually distinct enough, fallback to color or shape
-                if not largest_distinct and not smallest_distinct:
-                    # Size differences not clear enough, fallback to color or shape
-                    colors = list(set(obj["color"] for obj in objects))
-                    if len(colors) >= 2:
-                        criterion_type = "color"
-                    else:
-                        criterion_type = "shape"
-                    
-                    if criterion_type == "color":
-                        remove_color = self.rng.choice(colors)
-                        target_object_ids = [obj["id"] for obj in objects if obj["color"] == remove_color]
-                        rule = {
-                            "level": "L1",
-                            "rule_type": "color",
-                            "remove_color": remove_color,
-                            "target_object_ids": target_object_ids
-                        }
-                        prompt = f"Remove all {remove_color} objects from the scene. Do not do anything to other objects."
-                    else:
-                        shapes = list(set(obj["shape"] for obj in objects))
-                        remove_shape = self.rng.choice(shapes)
-                        target_object_ids = [obj["id"] for obj in objects if obj["shape"] == remove_shape]
-                        rule = {
-                            "level": "L1",
-                            "rule_type": "shape",
-                            "remove_shape": remove_shape,
-                            "target_object_ids": target_object_ids
-                        }
-                        shape_name = remove_shape.capitalize()
-                        prompt = f"Remove all {shape_name.lower()} objects from the scene. Do not do anything to other objects."
-                else:
-                    # Choose between largest and smallest, but only if visually distinct
-                    available_types = []
-                    if largest_distinct:
-                        available_types.append("largest")
-                    if smallest_distinct:
-                        available_types.append("smallest")
-                    
-                    # If both are available, randomly choose; otherwise use the available one
-                    if len(available_types) > 0:
-                        size_type = self.rng.choice(available_types)
-                    else:
-                        # Should not happen, but fallback
-                        size_type = "largest" if largest_distinct else "smallest"
-                    
-                    if size_type == "largest":
-                        # Remove all objects with maximum size (can be multiple, but must be visually distinct)
-                        target_object_ids = [obj["id"] for obj in objects if obj["size"] == max_size]
-                        rule = {
-                            "level": "L1",
-                            "rule_type": "size",
-                            "size_type": "largest",
-                            "target_object_ids": target_object_ids
-                        }
-                        # Use singular if only one, plural if multiple
-                        if len(target_object_ids) == 1:
-                            prompt = "Remove the largest object. Do not do anything to other objects."
-                        else:
-                            prompt = f"Remove all largest objects. Do not do anything to other objects."
-                    else:  # smallest
-                        # Remove all objects with minimum size (can be multiple, but must be visually distinct)
-                        target_object_ids = [obj["id"] for obj in objects if obj["size"] == min_size]
-                        rule = {
-                            "level": "L1",
-                            "rule_type": "size",
-                            "size_type": "smallest",
-                            "target_object_ids": target_object_ids
-                        }
-                        # Use singular if only one, plural if multiple
-                        if len(target_object_ids) == 1:
-                            prompt = "Remove the smallest object. Do not do anything to other objects."
-                        else:
-                            prompt = f"Remove all smallest objects. Do not do anything to other objects."
         
         return rule, prompt
     
@@ -636,47 +479,15 @@ class RuleGenerator:
         relation_types = []
         
         # Check which relation types are available
-        # Use leftmost/rightmost/topmost/bottommost for more accurate selection
+        # Only keep edge-based relations (leftmost, rightmost, topmost, bottommost)
         if len(relations["clear_left_objects"]) > 0:
-            relation_types.append("leftmost")  # More accurate: use sorting
-            relation_types.append("left_side")  # Keep for backward compatibility
+            relation_types.append("leftmost")
         if len(relations["clear_right_objects"]) > 0:
-            relation_types.append("rightmost")  # More accurate: use sorting
-            relation_types.append("right_side")  # Keep for backward compatibility
+            relation_types.append("rightmost")
         if len(relations["clear_top_objects"]) > 0:
-            relation_types.append("topmost")  # More accurate: use sorting
-            relation_types.append("top_half")  # Keep for backward compatibility
+            relation_types.append("topmost")
         if len(relations["clear_bottom_objects"]) > 0:
-            relation_types.append("bottommost")  # More accurate: use sorting
-            relation_types.append("bottom_half")  # Keep for backward compatibility
-        
-        # Distance-based relations (check for sufficient distance difference)
-        if len(objects) >= 2:
-            distances = list(relations["distances_from_center"].values())
-            if len(distances) >= 2:
-                max_dist = max(distances)
-                min_dist = min(distances)
-                # Only include if distance difference is significant (at least 50px)
-                if max_dist - min_dist >= 50:
-                    relation_types.append("farthest_from_center")
-                    if len(objects) >= 3:
-                        relation_types.append("nearest_to_center")
-        
-        # Corner-based relations (new: objects closest to corners)
-        if len(objects) >= 2:
-            corner_dists = list(relations["corner_distances"].values())
-            if len(corner_dists) >= 2:
-                min_corner_dist = min(corner_dists)
-                max_corner_dist = max(corner_dists)
-                # Only include if there's significant variation in corner distances
-                if max_corner_dist - min_corner_dist >= 30:
-                    relation_types.append("corner_closest")
-        
-        # Quadrant-based relations (using clear_quadrants for strict boundaries)
-        for quadrant in ["top_left", "top_right", "bottom_left", "bottom_right"]:
-            count = sum(1 for q in relations["clear_quadrants"].values() if q == quadrant)
-            if count > 0:
-                relation_types.append(f"{quadrant}_quadrant")
+            relation_types.append("bottommost")
         
         if not relation_types:
             return self.generate_l1_rule(objects, prompt_index)
@@ -729,94 +540,6 @@ class RuleGenerator:
             # Select the bottommost N objects (reverse sorted by y)
             candidates.reverse()
             target_object_ids = [obj["id"] for obj in candidates[:num_to_remove]]
-        
-        elif relation_type == "left_side":
-            # Use clear_left_objects for strict boundary, then sort for accuracy
-            candidates = [obj for obj in relations["x_sorted_objects"] 
-                         if obj["id"] in relations["clear_left_objects"]]
-            if not candidates:
-                return self.generate_l1_rule(objects, prompt_index)
-            num_to_remove = min(self.rng.randint(1, min(3, len(candidates))), len(objects) - 1)
-            # Select the leftmost N from candidates (already sorted)
-            target_object_ids = [obj["id"] for obj in candidates[:num_to_remove]]
-        
-        elif relation_type == "right_side":
-            # Use clear_right_objects for strict boundary, then sort for accuracy
-            candidates = [obj for obj in relations["x_sorted_objects"] 
-                         if obj["id"] in relations["clear_right_objects"]]
-            if not candidates:
-                return self.generate_l1_rule(objects, prompt_index)
-            num_to_remove = min(self.rng.randint(1, min(3, len(candidates))), len(objects) - 1)
-            # Select the rightmost N from candidates (reverse sorted)
-            candidates.reverse()
-            target_object_ids = [obj["id"] for obj in candidates[:num_to_remove]]
-        
-        elif relation_type == "top_half":
-            # Use VERY strict clear_top_objects for maximum accuracy
-            # Only objects clearly in top 25% of canvas
-            target_object_ids = relations["clear_top_objects"]
-            if not target_object_ids:
-                return self.generate_l1_rule(objects, prompt_index)
-            num_to_remove = len(target_object_ids)
-            # Ensure at least 1 object remains
-            if num_to_remove >= len(objects):
-                target_object_ids = self.rng.sample(target_object_ids, len(objects) - 1)
-                num_to_remove = len(target_object_ids)
-        
-        elif relation_type == "bottom_half":
-            # Use VERY strict clear_bottom_objects for maximum accuracy
-            # Only objects clearly in bottom 25% of canvas
-            target_object_ids = relations["clear_bottom_objects"]
-            if not target_object_ids:
-                return self.generate_l1_rule(objects, prompt_index)
-            num_to_remove = len(target_object_ids)
-            # Ensure at least 1 object remains
-            if num_to_remove >= len(objects):
-                target_object_ids = self.rng.sample(target_object_ids, len(objects) - 1)
-                num_to_remove = len(target_object_ids)
-        
-        elif relation_type == "corner_closest":
-            # Select objects closest to corners
-            sorted_by_corner = sorted(
-                objects,
-                key=lambda o: relations["corner_distances"][o["id"]]
-            )
-            num_to_remove = min(self.rng.randint(1, 2), len(objects) - 1)
-            target_object_ids = [o["id"] for o in sorted_by_corner[:num_to_remove]]
-        
-        elif relation_type == "farthest_from_center":
-            # Sort objects by distance from center (farthest first)
-            sorted_objects = sorted(
-                objects,
-                key=lambda o: relations["distances_from_center"][o["id"]],
-                reverse=True
-            )
-            num_to_remove = min(self.rng.randint(1, 3), len(objects) - 1)
-            target_object_ids = [o["id"] for o in sorted_objects[:num_to_remove]]
-        
-        elif relation_type == "nearest_to_center":
-            # Sort objects by distance from center (nearest first)
-            sorted_objects = sorted(
-                objects,
-                key=lambda o: relations["distances_from_center"][o["id"]]
-            )
-            num_to_remove = min(self.rng.randint(1, 3), len(objects) - 1)
-            target_object_ids = [o["id"] for o in sorted_objects[:num_to_remove]]
-        
-        elif relation_type.endswith("_quadrant"):
-            # Extract quadrant name and use STRICT clear_quadrants for maximum accuracy
-            # This ensures objects are clearly in the quadrant, not ambiguous
-            quadrant_name = relation_type.replace("_quadrant", "")
-            candidates = [obj["id"] for obj in objects 
-                        if relations["clear_quadrants"].get(obj["id"]) == quadrant_name]
-            if not candidates:
-                return self.generate_l1_rule(objects, prompt_index)
-            # Remove all objects in this quadrant, or sample if too many
-            if len(candidates) >= len(objects):
-                target_object_ids = self.rng.sample(candidates, len(objects) - 1)
-            else:
-                target_object_ids = candidates
-            num_to_remove = len(target_object_ids)
         
         # Generate prompt based on relation type
         prompt = self._generate_l3_prompt(relation_type, num_to_remove)
@@ -982,13 +705,13 @@ class RuleGenerator:
         attributes = self._calculate_conceptual_attributes(objects)
         
         # Define available conceptual relation types
-        # Level 4 now ONLY focuses on outlier detection (remove_outlier)
-        # Largest/smallest have been moved to Level 1
+        # Level 4 supports three types of outlier detection:
+        # 1. remove_outlier: Combination outlier (color+shape combination)
+        # 2. remove_shape_outlier: Shape consistency outlier (same shape, different colors)
+        # 3. remove_color_outlier: Color consistency outlier (same color, different shapes)
         relation_types = []
         
-        # Similarity-based relations (outlier detection)
-        # Focus on "the one that looks different" - ensure only ONE outlier
-        # Majority should be VERY clear (at least 70% of objects) for maximum obviousness
+        # Type 4.1: Combination outlier detection
         # Check for clear majority group (color+shape combination)
         combo_counts = {}
         for obj in objects:
@@ -998,23 +721,61 @@ class RuleGenerator:
         majority_combo = max(combo_counts.items(), key=lambda x: x[1], default=None)
         
         # Only add outlier if there's a clear majority (>=50%) and exactly ONE outlier
-        # Lowered from 70% to 50% to make it easier to generate L4 tasks
-        # This ensures the outlier is OBVIOUS and stands out clearly
         if majority_combo and majority_combo[1] >= len(objects) * 0.5:
             # Count how many objects are NOT in the majority
             outlier_count = len(objects) - majority_combo[1]
             if outlier_count == 1:  # Exactly ONE outlier
                 relation_types.append("remove_outlier")  # Remove THE one that looks different
         
-        # Level 4 now ONLY focuses on outlier detection (remove_outlier)
-        # Largest/smallest have been moved to Level 1
+        # Type 4.2.1: Shape consistency outlier detection
+        # Check if majority have same shape but different colors
+        shape_counts = {}
+        for obj in objects:
+            shape = obj["shape"]
+            shape_counts[shape] = shape_counts.get(shape, 0) + 1
+        
+        majority_shape = max(shape_counts.items(), key=lambda x: x[1], default=None)
+        if majority_shape and majority_shape[1] >= len(objects) * 0.5:
+            # Count how many objects have different shapes
+            different_shape_count = len(objects) - majority_shape[1]
+            if different_shape_count == 1:  # Exactly ONE object with different shape
+                # Verify that majority objects have different colors (not all same color)
+                majority_shape_objs = [obj for obj in objects if obj["shape"] == majority_shape[0]]
+                majority_colors = set(obj["color"] for obj in majority_shape_objs)
+                # Only add if majority has at least 2 different colors (ensuring color diversity)
+                if len(majority_colors) >= 2:
+                    relation_types.append("remove_shape_outlier")
+        
+        # Type 4.2.2: Color consistency outlier detection
+        # Check if majority have same color but different shapes
+        color_counts = {}
+        for obj in objects:
+            color = obj["color"]
+            color_counts[color] = color_counts.get(color, 0) + 1
+        
+        majority_color = max(color_counts.items(), key=lambda x: x[1], default=None)
+        if majority_color and majority_color[1] >= len(objects) * 0.5:
+            # Count how many objects have different colors
+            different_color_count = len(objects) - majority_color[1]
+            if different_color_count == 1:  # Exactly ONE object with different color
+                # Verify that majority objects have different shapes (not all same shape)
+                majority_color_objs = [obj for obj in objects if obj["color"] == majority_color[0]]
+                majority_shapes = set(obj["shape"] for obj in majority_color_objs)
+                # Only add if majority has at least 2 different shapes (ensuring shape diversity)
+                if len(majority_shapes) >= 2:
+                    relation_types.append("remove_color_outlier")
+        
+        # Level 4 supports three types of outlier detection:
+        # 1. remove_outlier: Combination outlier (color+shape combination)
+        # 2. remove_shape_outlier: Shape consistency outlier
+        # 3. remove_color_outlier: Color consistency outlier
         
         if not relation_types:
             # Fallback to L1 if no suitable L4 rule can be generated
             return self.generate_l1_rule(objects, prompt_index)
         
-        # Only one relation type available now (remove_outlier)
-        relation_type = relation_types[0]
+        # Randomly select from available relation types
+        relation_type = self.rng.choice(relation_types)
         
         # Select target objects based on relation type
         target_object_ids = []
@@ -1028,6 +789,44 @@ class RuleGenerator:
             if len(target_object_ids) != 1:
                 # Fallback: if somehow multiple, pick the first one
                 target_object_ids = [target_object_ids[0]] if target_object_ids else []
+            num_to_remove = len(target_object_ids)
+        
+        elif relation_type == "remove_shape_outlier":
+            # Remove THE one object with different shape
+            # Find the majority shape
+            shape_counts = {}
+            for obj in objects:
+                shape = obj["shape"]
+                shape_counts[shape] = shape_counts.get(shape, 0) + 1
+            majority_shape = max(shape_counts.items(), key=lambda x: x[1], default=None)
+            
+            if majority_shape:
+                # Find objects with different shape
+                different_shape_objs = [obj for obj in objects if obj["shape"] != majority_shape[0]]
+                if len(different_shape_objs) == 1:
+                    target_object_ids = [different_shape_objs[0]["id"]]
+                else:
+                    # Fallback: pick first one
+                    target_object_ids = [different_shape_objs[0]["id"]] if different_shape_objs else []
+            num_to_remove = len(target_object_ids)
+        
+        elif relation_type == "remove_color_outlier":
+            # Remove THE one object with different color
+            # Find the majority color
+            color_counts = {}
+            for obj in objects:
+                color = obj["color"]
+                color_counts[color] = color_counts.get(color, 0) + 1
+            majority_color = max(color_counts.items(), key=lambda x: x[1], default=None)
+            
+            if majority_color:
+                # Find objects with different color
+                different_color_objs = [obj for obj in objects if obj["color"] != majority_color[0]]
+                if len(different_color_objs) == 1:
+                    target_object_ids = [different_color_objs[0]["id"]]
+                else:
+                    # Fallback: pick first one
+                    target_object_ids = [different_color_objs[0]["id"]] if different_color_objs else []
             num_to_remove = len(target_object_ids)
         
         
@@ -1063,12 +862,10 @@ class RuleGenerator:
         Returns:
             Prompt text
         """
-        if relation_type == "remove_outlier":
-            # Always singular: "the one that looks different"
-            prompt = "Remove the object that looks different from the others. Do not do anything to other objects."
-        else:
-            # Fallback prompt (should not happen, but just in case)
-            prompt = f"Remove {num_objects} objects based on their conceptual properties. Do not do anything to other objects."
+        # All L4 types use the same unified prompt
+        # This makes the task more abstract - the model needs to figure out what makes the object different
+        # (whether it's shape, color, or combination)
+        prompt = "Remove the object that looks different from the others. Do not do anything to other objects."
         
         return prompt
     
@@ -1107,54 +904,6 @@ class RuleGenerator:
             else:
                 prompt = f"Remove the {num_objects} bottommost objects. Do not do anything to other objects."
         
-        elif relation_type == "left_side":
-            if num_objects == 1:
-                prompt = "Remove the object on the far left side of the screen. Do not do anything to other objects."
-            else:
-                prompt = f"Remove the {num_objects} objects on the far left side of the screen. Do not do anything to other objects."
-        
-        elif relation_type == "right_side":
-            if num_objects == 1:
-                prompt = "Remove the object on the far right side of the screen. Do not do anything to other objects."
-            else:
-                prompt = f"Remove the {num_objects} objects on the far right side of the screen. Do not do anything to other objects."
-        
-        elif relation_type == "top_half":
-            prompt = "Remove all objects in the upper half of the image. Do not do anything to other objects."
-        
-        elif relation_type == "bottom_half":
-            prompt = "Remove all objects in the lower half of the image. Do not do anything to other objects."
-        
-        elif relation_type == "farthest_from_center":
-            if num_objects == 1:
-                prompt = "Move the object farthest from the center out of view. Do not do anything to other objects."
-            else:
-                prompt = f"Move the {num_objects} objects farthest from the center out of view. Do not do anything to other objects."
-        
-        elif relation_type == "nearest_to_center":
-            if num_objects == 1:
-                prompt = "Remove the object nearest to the center. Do not do anything to other objects."
-            else:
-                prompt = f"Remove the {num_objects} objects nearest to the center. Do not do anything to other objects."
-        
-        elif relation_type == "top_left_quadrant":
-            prompt = "Remove all objects in the top-left quadrant. Do not do anything to other objects."
-        
-        elif relation_type == "top_right_quadrant":
-            prompt = "Remove all objects in the top-right quadrant. Do not do anything to other objects."
-        
-        elif relation_type == "bottom_left_quadrant":
-            prompt = "Remove all objects in the bottom-left quadrant. Do not do anything to other objects."
-        
-        elif relation_type == "bottom_right_quadrant":
-            prompt = "Remove all objects in the bottom-right quadrant. Do not do anything to other objects."
-        
-        elif relation_type == "corner_closest":
-            if num_objects == 1:
-                prompt = "Remove the object closest to a corner. Do not do anything to other objects."
-            else:
-                prompt = f"Remove the {num_objects} objects closest to the corners. Do not do anything to other objects."
-        
         else:
             # Fallback prompt
             prompt = f"Remove {num_objects} objects based on spatial relations. Do not do anything to other objects."
@@ -1173,13 +922,13 @@ class RuleGenerator:
         Returns:
             (rule_dict, prompt_text)
         """
-        # Ensure we have enough objects (at least 3-4 for Level 2)
-        if len(objects) < 3:
+        # Ensure we have enough objects (at least 2 for Level 2)
+        if len(objects) < 2:
             # Fallback to L1 if not enough objects
             return self.generate_l1_rule(objects, prompt_index)
         
-        # Randomly select 2-3 objects to remove (ensure at least 1 object remains)
-        num_to_remove = self.rng.randint(2, min(3, len(objects) - 1))
+        # Randomly select 1-3 objects to remove (ensure at least 1 object remains)
+        num_to_remove = self.rng.randint(1, min(3, len(objects) - 1))
         selected_objects = self.rng.sample(objects, num_to_remove)
         
         # Build targets list with color and shape combinations
@@ -1215,7 +964,9 @@ class RuleGenerator:
                 # Single object: use "the" + singular form
                 target_descriptions.append(f"the {target['color']} {target['shape']}")
         
-        if len(target_descriptions) == 2:
+        if len(target_descriptions) == 1:
+            prompt = f"Remove {target_descriptions[0]} from the scene. Do not do anything to other objects."
+        elif len(target_descriptions) == 2:
             prompt = f"Remove {target_descriptions[0]} and {target_descriptions[1]} from the scene. Do not do anything to other objects."
         else:  # 3 objects
             prompt = f"Remove {target_descriptions[0]}, {target_descriptions[1]}, and {target_descriptions[2]} from the scene. Do not do anything to other objects."
@@ -1282,19 +1033,21 @@ class ObjectSubtractionGenerator:
             self.object_gen.rng.seed(seed)
         
         # Generate objects
-        # For L4, use wider size range to ensure absolute visual distinction
-        # This makes it easier to have large size gaps (>=35 pixels)
-        if level == "L4":
-            # Use wider size range for L4: 18-50 pixels (instead of default 20-40)
-            # This ensures we can easily get 35+ pixel gaps between largest and smallest
-            # Max gap possible: 50 - 18 = 32 pixels, but we'll force it to be at least 35
+        # For L1, L2, L3, L4: use uniform size (no size differences needed)
+        original_min = None
+        original_max = None
+        if level in ["L1", "L2", "L3", "L4"]:
+            # Store original size range
             original_min = self.object_gen.min_size
             original_max = self.object_gen.max_size
-            self.object_gen.min_size = 18
-            self.object_gen.max_size = 50
+            # Use a fixed size for all objects in all levels
+            # Choose a middle size (e.g., 30 pixels) for uniform appearance
+            uniform_size = 30
+            self.object_gen.min_size = uniform_size
+            self.object_gen.max_size = uniform_size
         
         # For L4, generate more objects to increase chance of having clear majorities
-        # This makes it easier to satisfy L4 conditions (>=60% majority, etc.)
+        # This makes it easier to satisfy L4 conditions (>=50% majority, etc.)
         if level == "L4":
             # Generate 6-8 objects (instead of 5-8) to increase chance of clear majorities
             num_objects = random.randint(6, 8)
@@ -1303,338 +1056,106 @@ class ObjectSubtractionGenerator:
         
         objects = self.object_gen.generate_objects(num_objects, seed=seed)
         
-        # For L1, enhance size differences to ensure very clear visual distinction
-        # when size-based rules (largest/smallest) are used
-        if level == "L1":
-            sizes = [obj["size"] for obj in objects]
-            max_size = max(sizes)
-            min_size = min(sizes)
-            size_range = max_size - min_size
-            
-            # Target: at least 15 pixels difference between largest and smallest
-            # And at least 12 pixels difference between largest and second largest (or smallest and second smallest)
-            MIN_VISUAL_GAP = 15  # Overall size range
-            MIN_RELATIVE_GAP = 12  # Gap between largest/smallest and next
-            
-            # Find largest and smallest objects
-            largest_objs = [obj for obj in objects if obj["size"] == max_size]
-            smallest_objs = [obj for obj in objects if obj["size"] == min_size]
-            
-            # Get unique sizes sorted
-            unique_sizes = sorted(set(sizes))
-            
-            # Enhance largest object to be very obvious
-            if len(largest_objs) > 0 and len(unique_sizes) >= 2:
-                largest_obj = largest_objs[0]
-                second_largest = unique_sizes[-2]
-                current_gap = max_size - second_largest
-                
-                if current_gap < MIN_RELATIVE_GAP:
-                    # Make largest even larger
-                    target_largest = min(self.object_gen.max_size, second_largest + MIN_RELATIVE_GAP)
-                    largest_obj["size"] = target_largest
-                    # Update area
-                    if largest_obj["shape"] == "cube":
-                        largest_obj["area"] = target_largest * target_largest
-                    elif largest_obj["shape"] == "sphere":
-                        largest_obj["area"] = int(np.pi * (target_largest // 2) ** 2)
-                    elif largest_obj["shape"] == "pyramid":
-                        largest_obj["area"] = int(target_largest * target_largest * 0.433)
+        # For L1, L2, L3, L4: ensure all objects have exactly the same size
+        if level in ["L1", "L2", "L3", "L4"]:
+            # Get the first object's size (all should be same after generation with min=max)
+            if objects:
+                uniform_size = objects[0]["size"]
+                # Ensure all objects have exactly this size
+                for obj in objects:
+                    obj["size"] = uniform_size
+                    # Update area accordingly
+                    if obj["shape"] == "cube":
+                        obj["area"] = uniform_size * uniform_size
+                    elif obj["shape"] == "sphere":
+                        obj["area"] = int(np.pi * (uniform_size // 2) ** 2)
+                    elif obj["shape"] == "pyramid":
+                        obj["area"] = int(uniform_size * uniform_size * 0.433)
                     else:  # cone
-                        largest_obj["area"] = int(np.pi * (target_largest // 2) ** 2)
-            
-            # Enhance smallest object to be very obvious
-            if len(smallest_objs) > 0 and len(unique_sizes) >= 2:
-                smallest_obj = smallest_objs[0]
-                second_smallest = unique_sizes[1]
-                current_gap = second_smallest - min_size
-                
-                if current_gap < MIN_RELATIVE_GAP:
-                    # Make smallest even smaller
-                    target_smallest = max(self.object_gen.min_size, second_smallest - MIN_RELATIVE_GAP)
-                    smallest_obj["size"] = target_smallest
-                    # Update area
-                    if smallest_obj["shape"] == "cube":
-                        smallest_obj["area"] = target_smallest * target_smallest
-                    elif smallest_obj["shape"] == "sphere":
-                        smallest_obj["area"] = int(np.pi * (target_smallest // 2) ** 2)
-                    elif smallest_obj["shape"] == "pyramid":
-                        smallest_obj["area"] = int(target_smallest * target_smallest * 0.433)
-                    else:  # cone
-                        smallest_obj["area"] = int(np.pi * (target_smallest // 2) ** 2)
-            
-            # Ensure overall size range is large enough
-            sizes_after = [obj["size"] for obj in objects]
-            max_size_after = max(sizes_after)
-            min_size_after = min(sizes_after)
-            range_after = max_size_after - min_size_after
-            
-            if range_after < MIN_VISUAL_GAP:
-                # Further enhance: make largest even larger or smallest even smaller
-                if len(largest_objs) > 0:
-                    largest_obj = largest_objs[0]
-                    target_largest = min(self.object_gen.max_size, min_size_after + MIN_VISUAL_GAP)
-                    largest_obj["size"] = target_largest
-                    # Update area
-                    if largest_obj["shape"] == "cube":
-                        largest_obj["area"] = target_largest * target_largest
-                    elif largest_obj["shape"] == "sphere":
-                        largest_obj["area"] = int(np.pi * (target_largest // 2) ** 2)
-                    elif largest_obj["shape"] == "pyramid":
-                        largest_obj["area"] = int(target_largest * target_largest * 0.433)
-                    else:  # cone
-                        largest_obj["area"] = int(np.pi * (target_largest // 2) ** 2)
+                        obj["area"] = int(np.pi * (uniform_size // 2) ** 2)
         
-        # For L4, actively create a clear majority to ensure outlier detection works
-        # This ensures we can generate proper L4 tasks (remove_outlier)
+        # For L4, actively create scenarios for different outlier detection types
+        # This ensures we can generate proper L4 tasks
         if level == "L4":
-            # Create a clear majority: most objects with same color+shape, one different
             num_objects = len(objects)
             majority_count = num_objects - 1  # All but one
             
-            # Choose a majority color and shape
-            majority_color = self.rule_gen.rng.choice(ObjectGenerator.COLORS)
-            majority_shape = self.rule_gen.rng.choice(ObjectGenerator.SHAPES)
+            # Randomly choose which type of L4 task to create
+            # 1: remove_outlier (combination), 2: remove_shape_outlier, 3: remove_color_outlier
+            l4_type = self.rule_gen.rng.choice([1, 2, 3])
             
-            # Choose an outlier color and shape (different from majority)
-            outlier_color = self.rule_gen.rng.choice([c for c in ObjectGenerator.COLORS if c != majority_color])
-            outlier_shape = self.rule_gen.rng.choice([s for s in ObjectGenerator.SHAPES if s != majority_shape])
-            
-            # Assign majority color+shape to most objects
-            for i, obj in enumerate(objects):
-                if i < majority_count:
-                    obj["color"] = majority_color
-                    obj["shape"] = majority_shape
-                else:
-                    # The last one is the outlier
-                    obj["color"] = outlier_color
-                    obj["shape"] = outlier_shape
-        
-        # For L4, ensure we have objects with extreme sizes to guarantee >=30 pixel gap
-        # AND ensure the extreme objects are isolated (at least 15px from next closest)
-        # This ensures "largest" and "smallest" are absolutely obvious and stand out
-        if level == "L4":
-            sizes = [obj["size"] for obj in objects]
-            max_size = max(sizes)
-            min_size = min(sizes)
-            gap = max_size - min_size
-            
-            # Ensure overall gap is at least 32 pixels (50-18=32 is maximum possible)
-            # Force at least one object to be at max (50) and one at min (18) for maximum gap
-            if gap < 32:
-                # Find object with max size and force it to maximum (50)
-                for obj in objects:
-                    if obj["size"] == max_size:
-                        obj["size"] = 50
-                        # Update area accordingly
-                        if obj["shape"] == "cube":
-                            obj["area"] = obj["size"] * obj["size"]
-                        elif obj["shape"] == "sphere":
-                            obj["area"] = int(np.pi * (obj["size"] // 2) ** 2)
-                        elif obj["shape"] == "pyramid":
-                            obj["area"] = int(obj["size"] * obj["size"] * 0.433)
-                        else:  # cone
-                            obj["area"] = int(np.pi * (obj["size"] // 2) ** 2)
-                        break
+            if l4_type == 1:
+                # Type 4.1: Combination outlier (color+shape combination)
+                # Create a clear majority: most objects with same color+shape, one different
+                majority_color = self.rule_gen.rng.choice(ObjectGenerator.COLORS)
+                majority_shape = self.rule_gen.rng.choice(ObjectGenerator.SHAPES)
                 
-                # Find object with min size and force it to minimum (18)
-                for obj in objects:
-                    if obj["size"] == min_size:
-                        obj["size"] = 18
-                        # Update area accordingly
-                        if obj["shape"] == "cube":
-                            obj["area"] = obj["size"] * obj["size"]
-                        elif obj["shape"] == "sphere":
-                            obj["area"] = int(np.pi * (obj["size"] // 2) ** 2)
-                        elif obj["shape"] == "pyramid":
-                            obj["area"] = int(obj["size"] * obj["size"] * 0.433)
-                        else:  # cone
-                            obj["area"] = int(np.pi * (obj["size"] // 2) ** 2)
-                        break
+                # Choose an outlier color and shape (different from majority)
+                outlier_color = self.rule_gen.rng.choice([c for c in ObjectGenerator.COLORS if c != majority_color])
+                outlier_shape = self.rule_gen.rng.choice([s for s in ObjectGenerator.SHAPES if s != majority_shape])
                 
-                # After forcing max to 50 and min to 18, gap should be at least 32
-                # Recalculate to verify
-                sizes = [obj["size"] for obj in objects]
-                new_gap = max(sizes) - min(sizes)
-                # Gap should now be at least 32 (50-18=32)
-            
-            # After ensuring overall gap, check isolation gaps
-            # Recalculate sizes after potential adjustments
-            sizes = [obj["size"] for obj in objects]
-            unique_sizes = sorted(set(sizes))
-            
-            # CRITICAL: Ensure largest is UNIQUE and isolated
-            # If multiple objects have max_size, make one larger and others smaller
-            max_size = max(sizes)
-            max_size_count = sum(1 for s in sizes if s == max_size)
-            if max_size_count > 1:
-                # Multiple objects with max size - make one unique largest
-                max_objects = [obj for obj in objects if obj["size"] == max_size]
-                # Keep first one as largest, make others smaller
-                for i, obj in enumerate(max_objects):
-                    if i == 0:
-                        # Make this one even larger to ensure uniqueness
-                        obj["size"] = min(50, max_size + 15)
+                # Assign majority color+shape to most objects
+                for i, obj in enumerate(objects):
+                    if i < majority_count:
+                        obj["color"] = majority_color
+                        obj["shape"] = majority_shape
                     else:
-                        # Make others smaller (at least 15px smaller)
-                        obj["size"] = max(18, max_size - 15)
-                    # Update area
-                    if obj["shape"] == "cube":
-                        obj["area"] = obj["size"] * obj["size"]
-                    elif obj["shape"] == "sphere":
-                        obj["area"] = int(np.pi * (obj["size"] // 2) ** 2)
-                    elif obj["shape"] == "pyramid":
-                        obj["area"] = int(obj["size"] * obj["size"] * 0.433)
-                    else:  # cone
-                        obj["area"] = int(np.pi * (obj["size"] // 2) ** 2)
+                        # The last one is the outlier
+                        obj["color"] = outlier_color
+                        obj["shape"] = outlier_shape
             
-            # CRITICAL: Ensure smallest is UNIQUE and isolated
-            sizes = [obj["size"] for obj in objects]  # Recalculate after adjustments
-            min_size = min(sizes)
-            min_size_count = sum(1 for s in sizes if s == min_size)
-            if min_size_count > 1:
-                # Multiple objects with min size - make one unique smallest
-                min_objects = [obj for obj in objects if obj["size"] == min_size]
-                # Keep first one as smallest, make others larger
-                for i, obj in enumerate(min_objects):
-                    if i == 0:
-                        # Make this one even smaller to ensure uniqueness
-                        obj["size"] = max(18, min_size - 15)
-                    else:
-                        # Make others larger (at least 15px larger)
-                        obj["size"] = min(50, min_size + 15)
-                    # Update area
-                    if obj["shape"] == "cube":
-                        obj["area"] = obj["size"] * obj["size"]
-                    elif obj["shape"] == "sphere":
-                        obj["area"] = int(np.pi * (obj["size"] // 2) ** 2)
-                    elif obj["shape"] == "pyramid":
-                        obj["area"] = int(obj["size"] * obj["size"] * 0.433)
-                    else:  # cone
-                        obj["area"] = int(np.pi * (obj["size"] // 2) ** 2)
-            
-            # Now ensure isolation gaps - CRITICAL for L4 to work
-            # Strategy: Ensure both largest and smallest are isolated simultaneously
-            # If largest is 50 and smallest is 18, we need:
-            #   - second_largest <= 30 (for 20px gap from 50)
-            #   - second_smallest >= 38 (for 20px gap from 18)
-            # This creates a clear separation: [18] ... [38-50] with gap in between
-            sizes = [obj["size"] for obj in objects]  # Recalculate
-            unique_sizes = sorted(set(sizes))
-            
-            if len(unique_sizes) >= 2:
-                max_size = unique_sizes[-1]
-                min_size = unique_sizes[0]
-                second_largest = unique_sizes[-2] if len(unique_sizes) >= 2 else max_size
-                second_smallest = unique_sizes[1] if len(unique_sizes) >= 2 else min_size
+            elif l4_type == 2:
+                # Type 4.2.1: Shape consistency outlier
+                # Majority: same shape but different colors, outlier: different shape
+                majority_shape = self.rule_gen.rng.choice(ObjectGenerator.SHAPES)
+                outlier_shape = self.rule_gen.rng.choice([s for s in ObjectGenerator.SHAPES if s != majority_shape])
                 
-                # Adjust to ensure both isolations are satisfied
-                # Strategy: Create a clear separation: [18] ... [29] ... [38-50]
-                # This ensures: largest (50) is isolated from second (<=29), smallest (18) is isolated from second (>=38)
-                if max_size >= 50 and min_size <= 18:
-                    # Largest is 50, smallest is 18
-                    # Need: second_largest <= 29 (for 21px gap from 50), second_smallest >= 38 (for 20px gap from 18)
-                    target_second_largest = 50 - 21  # 29 (ensures 21px gap)
-                    target_second_smallest = 18 + 20  # 38 (ensures 20px gap)
-                    
-                    # Step 1: Adjust all objects >= 30 but < 50 to 29 (for largest isolation)
-                    # This creates a clear gap: largest (50) vs others (<=29)
-                    for obj in objects:
-                        if obj["size"] < 50 and obj["size"] >= 30:
-                            obj["size"] = 29
-                            # Update area
-                            if obj["shape"] == "cube":
-                                obj["area"] = obj["size"] * obj["size"]
-                            elif obj["shape"] == "sphere":
-                                obj["area"] = int(np.pi * (obj["size"] // 2) ** 2)
-                            elif obj["shape"] == "pyramid":
-                                obj["area"] = int(obj["size"] * obj["size"] * 0.433)
-                            else:  # cone
-                                obj["area"] = int(np.pi * (obj["size"] // 2) ** 2)
-                    
-                    # Step 2: After step 1, ensure smallest isolation
-                    # After making all >=30 objects to 29, we need to ensure second_smallest >= 38
-                    # Strategy: Make sure at least one object (besides the smallest) is >= 38
-                    # If second_smallest is 29 (from step 1), we need to make some objects 38
-                    sizes_after_step1 = [obj["size"] for obj in objects]
-                    unique_sizes_after = sorted(set(sizes_after_step1))
-                    if len(unique_sizes_after) >= 2:
-                        min_size_after = unique_sizes_after[0]
-                        second_smallest_after = unique_sizes_after[1]
-                        smallest_isolation_after = second_smallest_after - min_size_after
-                        
-                        # If smallest isolation is not satisfied (second_smallest is 29 or less)
-                        if smallest_isolation_after < 20:
-                            # Need to make second_smallest >= 38
-                            # Find objects that are 29 (from step 1) and make at least one of them 38
-                            # This ensures smallest isolation while preserving largest isolation
-                            objects_at_29 = [obj for obj in objects if obj["size"] == 29]
-                            if objects_at_29:
-                                # Make the first object at 29 become 38 (ensures smallest isolation)
-                                # Keep others at 29 (preserves largest isolation)
-                                objects_at_29[0]["size"] = 38
-                                # Update area
-                                if objects_at_29[0]["shape"] == "cube":
-                                    objects_at_29[0]["area"] = objects_at_29[0]["size"] * objects_at_29[0]["size"]
-                                elif objects_at_29[0]["shape"] == "sphere":
-                                    objects_at_29[0]["area"] = int(np.pi * (objects_at_29[0]["size"] // 2) ** 2)
-                                elif objects_at_29[0]["shape"] == "pyramid":
-                                    objects_at_29[0]["area"] = int(objects_at_29[0]["size"] * objects_at_29[0]["size"] * 0.433)
-                                else:  # cone
-                                    objects_at_29[0]["area"] = int(np.pi * (objects_at_29[0]["size"] // 2) ** 2)
-                            
-                            # Also make any other objects > 18 and < 38 (but not 29) to 38
-                            for obj in objects:
-                                if obj["size"] > 18 and obj["size"] < 38 and obj["size"] != 29:
-                                    obj["size"] = 38
-                                    # Update area
-                                    if obj["shape"] == "cube":
-                                        obj["area"] = obj["size"] * obj["size"]
-                                    elif obj["shape"] == "sphere":
-                                        obj["area"] = int(np.pi * (obj["size"] // 2) ** 2)
-                                    elif obj["shape"] == "pyramid":
-                                        obj["area"] = int(obj["size"] * obj["size"] * 0.433)
-                                    else:  # cone
-                                        obj["area"] = int(np.pi * (obj["size"] // 2) ** 2)
-                elif max_size >= 50:
-                    # Only largest is at extreme, adjust for largest isolation
-                    target_second = 50 - 20  # 30
-                    for obj in objects:
-                        if obj["size"] < 50 and obj["size"] >= target_second:
-                            obj["size"] = max(18, target_second - 1)  # 29
-                            # Update area
-                            if obj["shape"] == "cube":
-                                obj["area"] = obj["size"] * obj["size"]
-                            elif obj["shape"] == "sphere":
-                                obj["area"] = int(np.pi * (obj["size"] // 2) ** 2)
-                            elif obj["shape"] == "pyramid":
-                                obj["area"] = int(obj["size"] * obj["size"] * 0.433)
-                            else:  # cone
-                                obj["area"] = int(np.pi * (obj["size"] // 2) ** 2)
-                elif min_size <= 18:
-                    # Only smallest is at extreme, adjust for smallest isolation
-                    target_second = 18 + 20  # 38
-                    for obj in objects:
-                        if obj["size"] > min_size and obj["size"] < target_second:
-                            obj["size"] = min(50, target_second)  # 38
-                            # Update area
-                            if obj["shape"] == "cube":
-                                obj["area"] = obj["size"] * obj["size"]
-                            elif obj["shape"] == "sphere":
-                                obj["area"] = int(np.pi * (obj["size"] // 2) ** 2)
-                            elif obj["shape"] == "pyramid":
-                                obj["area"] = int(obj["size"] * obj["size"] * 0.433)
-                            else:  # cone
-                                obj["area"] = int(np.pi * (obj["size"] // 2) ** 2)
+                # Assign majority shape to most objects with different colors
+                available_colors = ObjectGenerator.COLORS.copy()
+                for i, obj in enumerate(objects):
+                    if i < majority_count:
+                        # Assign majority shape with different colors
+                        color = self.rule_gen.rng.choice(available_colors)
+                        obj["color"] = color
+                        obj["shape"] = majority_shape
+                        # Ensure color diversity: remove used color if we have enough colors
+                        if len(available_colors) > 1:
+                            available_colors.remove(color)
+                            if not available_colors:
+                                available_colors = ObjectGenerator.COLORS.copy()
+                    else:
+                        # The last one is the outlier (different shape)
+                        obj["shape"] = outlier_shape
+                        # Outlier can have any color
+                        obj["color"] = self.rule_gen.rng.choice(ObjectGenerator.COLORS)
             
-            # For L4, we DON'T actively create majority groups here
-            # Let the rule generation decide which type of task to create
-            # If size-based tasks are available (remove_largest/smallest), they should be preferred
-            # Only create majority for outlier if size-based tasks are not available
-            # This ensures we get a good mix of task types
+            elif l4_type == 3:
+                # Type 4.2.2: Color consistency outlier
+                # Majority: same color but different shapes, outlier: different color
+                majority_color = self.rule_gen.rng.choice(ObjectGenerator.COLORS)
+                outlier_color = self.rule_gen.rng.choice([c for c in ObjectGenerator.COLORS if c != majority_color])
+                
+                # Assign majority color to most objects with different shapes
+                available_shapes = ObjectGenerator.SHAPES.copy()
+                for i, obj in enumerate(objects):
+                    if i < majority_count:
+                        # Assign majority color with different shapes
+                        shape = self.rule_gen.rng.choice(available_shapes)
+                        obj["color"] = majority_color
+                        obj["shape"] = shape
+                        # Ensure shape diversity: remove used shape if we have enough shapes
+                        if len(available_shapes) > 1:
+                            available_shapes.remove(shape)
+                            if not available_shapes:
+                                available_shapes = ObjectGenerator.SHAPES.copy()
+                    else:
+                        # The last one is the outlier (different color)
+                        obj["color"] = outlier_color
+                        # Outlier can have any shape
+                        obj["shape"] = self.rule_gen.rng.choice(ObjectGenerator.SHAPES)
         
-        # Restore original size range after generation
-        if level == "L4":
+        # Restore original size range after generation (for L1, L2, L3, L4)
+        if level in ["L1", "L2", "L3", "L4"] and original_min is not None and original_max is not None:
             self.object_gen.min_size = original_min
             self.object_gen.max_size = original_max
         
@@ -1672,188 +1193,106 @@ class ObjectSubtractionGenerator:
                             self.object_gen.rng.seed(retry_seed)
                         
                         # Regenerate objects
-                        if level == "L4":
-                            original_min = self.object_gen.min_size
-                            original_max = self.object_gen.max_size
-                            self.object_gen.min_size = 18
-                            self.object_gen.max_size = 50
+                        # For L1, L2, L3, L4: use uniform size
+                        retry_original_min = None
+                        retry_original_max = None
+                        if level in ["L1", "L2", "L3", "L4"]:
+                            retry_original_min = self.object_gen.min_size
+                            retry_original_max = self.object_gen.max_size
+                            uniform_size = 30
+                            self.object_gen.min_size = uniform_size
+                            self.object_gen.max_size = uniform_size
                         
                         # For L4 retry, use 6-8 objects to increase chance of clear majorities
                         num_objects = random.randint(6, 8) if level == "L4" else random.randint(self.num_objects_range[0], self.num_objects_range[1])
                         objects = self.object_gen.generate_objects(num_objects, seed=retry_seed)
                         
-                        # Apply L4 size adjustments again
-                        if level == "L4":
-                            sizes = [obj["size"] for obj in objects]
-                            max_size = max(sizes)
-                            min_size = min(sizes)
-                            gap = max_size - min_size
-                            
-                            if gap < 35:
+                        # For L1, L2, L3, L4: ensure all objects have exactly the same size
+                        if level in ["L1", "L2", "L3", "L4"]:
+                            if objects:
+                                uniform_size = objects[0]["size"]
                                 for obj in objects:
-                                    if obj["size"] == max_size:
-                                        obj["size"] = min(50, obj["size"] + (35 - gap))
-                                        if obj["shape"] == "cube":
-                                            obj["area"] = obj["size"] * obj["size"]
-                                        elif obj["shape"] == "sphere":
-                                            obj["area"] = int(np.pi * (obj["size"] // 2) ** 2)
-                                        elif obj["shape"] == "pyramid":
-                                            obj["area"] = int(obj["size"] * obj["size"] * 0.433)
-                                        else:
-                                            obj["area"] = int(np.pi * (obj["size"] // 2) ** 2)
-                                        break
-                                
-                                for obj in objects:
-                                    if obj["size"] == min_size:
-                                        obj["size"] = max(18, obj["size"] - (35 - gap))
-                                        if obj["shape"] == "cube":
-                                            obj["area"] = obj["size"] * obj["size"]
-                                        elif obj["shape"] == "sphere":
-                                            obj["area"] = int(np.pi * (obj["size"] // 2) ** 2)
-                                        elif obj["shape"] == "pyramid":
-                                            obj["area"] = int(obj["size"] * obj["size"] * 0.433)
-                                        else:
-                                            obj["area"] = int(np.pi * (obj["size"] // 2) ** 2)
-                                        break
-                            
-                            # Apply same size adjustments as initial generation
-                            sizes = [obj["size"] for obj in objects]
-                            max_size = max(sizes)
-                            min_size = min(sizes)
-                            gap = max_size - min_size
-                            
-                            if gap < 35:
-                                for obj in objects:
-                                    if obj["size"] == max_size:
-                                        obj["size"] = min(50, obj["size"] + (35 - gap))
-                                        if obj["shape"] == "cube":
-                                            obj["area"] = obj["size"] * obj["size"]
-                                        elif obj["shape"] == "sphere":
-                                            obj["area"] = int(np.pi * (obj["size"] // 2) ** 2)
-                                        elif obj["shape"] == "pyramid":
-                                            obj["area"] = int(obj["size"] * obj["size"] * 0.433)
-                                        else:
-                                            obj["area"] = int(np.pi * (obj["size"] // 2) ** 2)
-                                        break
-                                
-                                for obj in objects:
-                                    if obj["size"] == min_size:
-                                        obj["size"] = max(18, obj["size"] - (35 - gap))
-                                        if obj["shape"] == "cube":
-                                            obj["area"] = obj["size"] * obj["size"]
-                                        elif obj["shape"] == "sphere":
-                                            obj["area"] = int(np.pi * (obj["size"] // 2) ** 2)
-                                        elif obj["shape"] == "pyramid":
-                                            obj["area"] = int(obj["size"] * obj["size"] * 0.433)
-                                        else:
-                                            obj["area"] = int(np.pi * (obj["size"] // 2) ** 2)
-                                        break
-                            
-                            # Ensure uniqueness and isolation (same logic as initial generation)
-                            sizes = [obj["size"] for obj in objects]
-                            max_size = max(sizes)
-                            min_size = min(sizes)
-                            max_size_count = sum(1 for s in sizes if s == max_size)
-                            min_size_count = sum(1 for s in sizes if s == min_size)
-                            
-                            if max_size_count > 1:
-                                max_objects = [obj for obj in objects if obj["size"] == max_size]
-                                for i, obj in enumerate(max_objects):
-                                    if i == 0:
-                                        obj["size"] = min(50, max_size + 20)
-                                    else:
-                                        obj["size"] = max(18, max_size - 15)
+                                    obj["size"] = uniform_size
                                     if obj["shape"] == "cube":
-                                        obj["area"] = obj["size"] * obj["size"]
+                                        obj["area"] = uniform_size * uniform_size
                                     elif obj["shape"] == "sphere":
-                                        obj["area"] = int(np.pi * (obj["size"] // 2) ** 2)
+                                        obj["area"] = int(np.pi * (uniform_size // 2) ** 2)
                                     elif obj["shape"] == "pyramid":
-                                        obj["area"] = int(obj["size"] * obj["size"] * 0.433)
-                                    else:
-                                        obj["area"] = int(np.pi * (obj["size"] // 2) ** 2)
+                                        obj["area"] = int(uniform_size * uniform_size * 0.433)
+                                    else:  # cone
+                                        obj["area"] = int(np.pi * (uniform_size // 2) ** 2)
                             
-                            sizes = [obj["size"] for obj in objects]
-                            min_size = min(sizes)
-                            min_size_count = sum(1 for s in sizes if s == min_size)
-                            if min_size_count > 1:
-                                min_objects = [obj for obj in objects if obj["size"] == min_size]
-                                for i, obj in enumerate(min_objects):
-                                    if i == 0:
-                                        obj["size"] = max(18, min_size - 20)
-                                    else:
-                                        obj["size"] = min(50, min_size + 15)
-                                    if obj["shape"] == "cube":
-                                        obj["area"] = obj["size"] * obj["size"]
-                                    elif obj["shape"] == "sphere":
-                                        obj["area"] = int(np.pi * (obj["size"] // 2) ** 2)
-                                    elif obj["shape"] == "pyramid":
-                                        obj["area"] = int(obj["size"] * obj["size"] * 0.433)
-                                    else:
-                                        obj["area"] = int(np.pi * (obj["size"] // 2) ** 2)
+                            # Restore size range
+                            if retry_original_min is not None and retry_original_max is not None:
+                                self.object_gen.min_size = retry_original_min
+                                self.object_gen.max_size = retry_original_max
+                        
+                        # For L4, actively create scenarios for different outlier detection types
+                        if level == "L4" and attempt < max_retries - 1:
+                            num_objects = len(objects)
+                            majority_count = num_objects - 1  # All but one
                             
-                            sizes = [obj["size"] for obj in objects]
-                            unique_sizes = sorted(set(sizes))
+                            # Randomly choose which type of L4 task to create
+                            l4_type = self.rule_gen.rng.choice([1, 2, 3])
                             
-                            if len(unique_sizes) >= 2:
-                                max_size = unique_sizes[-1]
-                                second_largest = unique_sizes[-2]
-                                if max_size - second_largest < 20:
-                                    for obj in objects:
-                                        if obj["size"] == max_size:
-                                            obj["size"] = min(50, second_largest + 20)
-                                            if obj["shape"] == "cube":
-                                                obj["area"] = obj["size"] * obj["size"]
-                                            elif obj["shape"] == "sphere":
-                                                obj["area"] = int(np.pi * (obj["size"] // 2) ** 2)
-                                            elif obj["shape"] == "pyramid":
-                                                obj["area"] = int(obj["size"] * obj["size"] * 0.433)
-                                            else:
-                                                obj["area"] = int(np.pi * (obj["size"] // 2) ** 2)
-                                            break
-                                
-                                min_size = unique_sizes[0]
-                                second_smallest = unique_sizes[1]
-                                if second_smallest - min_size < 20:
-                                    for obj in objects:
-                                        if obj["size"] == min_size:
-                                            obj["size"] = max(18, second_smallest - 20)
-                                            if obj["shape"] == "cube":
-                                                obj["area"] = obj["size"] * obj["size"]
-                                            elif obj["shape"] == "sphere":
-                                                obj["area"] = int(np.pi * (obj["size"] // 2) ** 2)
-                                            elif obj["shape"] == "pyramid":
-                                                obj["area"] = int(obj["size"] * obj["size"] * 0.433)
-                                            else:
-                                                obj["area"] = int(np.pi * (obj["size"] // 2) ** 2)
-                                            break
-                            
-                            # For L4, actively create a clear majority to ensure outlier detection works
-                            # Generate a majority group (same color+shape) and one outlier
-                            if level == "L4" and attempt < max_retries - 1:
-                                # Create a clear majority: 5-6 objects with same color+shape, 1 different
-                                num_objects = len(objects)
-                                majority_count = num_objects - 1  # All but one
-                                
-                                # Choose a majority color and shape
+                            if l4_type == 1:
+                                # Type 4.1: Combination outlier
                                 majority_color = self.rule_gen.rng.choice(ObjectGenerator.COLORS)
                                 majority_shape = self.rule_gen.rng.choice(ObjectGenerator.SHAPES)
-                                
-                                # Choose an outlier color and shape (different from majority)
                                 outlier_color = self.rule_gen.rng.choice([c for c in ObjectGenerator.COLORS if c != majority_color])
                                 outlier_shape = self.rule_gen.rng.choice([s for s in ObjectGenerator.SHAPES if s != majority_shape])
                                 
-                                # Assign majority color+shape to most objects
                                 for i, obj in enumerate(objects):
                                     if i < majority_count:
                                         obj["color"] = majority_color
                                         obj["shape"] = majority_shape
                                     else:
-                                        # The last one is the outlier
                                         obj["color"] = outlier_color
                                         obj["shape"] = outlier_shape
                             
-                            self.object_gen.min_size = original_min
-                            self.object_gen.max_size = original_max
+                            elif l4_type == 2:
+                                # Type 4.2.1: Shape consistency outlier
+                                majority_shape = self.rule_gen.rng.choice(ObjectGenerator.SHAPES)
+                                outlier_shape = self.rule_gen.rng.choice([s for s in ObjectGenerator.SHAPES if s != majority_shape])
+                                available_colors = ObjectGenerator.COLORS.copy()
+                                
+                                for i, obj in enumerate(objects):
+                                    if i < majority_count:
+                                        color = self.rule_gen.rng.choice(available_colors)
+                                        obj["color"] = color
+                                        obj["shape"] = majority_shape
+                                        if len(available_colors) > 1:
+                                            available_colors.remove(color)
+                                            if not available_colors:
+                                                available_colors = ObjectGenerator.COLORS.copy()
+                                    else:
+                                        obj["shape"] = outlier_shape
+                                        obj["color"] = self.rule_gen.rng.choice(ObjectGenerator.COLORS)
+                            
+                            elif l4_type == 3:
+                                # Type 4.2.2: Color consistency outlier
+                                majority_color = self.rule_gen.rng.choice(ObjectGenerator.COLORS)
+                                outlier_color = self.rule_gen.rng.choice([c for c in ObjectGenerator.COLORS if c != majority_color])
+                                available_shapes = ObjectGenerator.SHAPES.copy()
+                                
+                                for i, obj in enumerate(objects):
+                                    if i < majority_count:
+                                        shape = self.rule_gen.rng.choice(available_shapes)
+                                        obj["color"] = majority_color
+                                        obj["shape"] = shape
+                                        if len(available_shapes) > 1:
+                                            available_shapes.remove(shape)
+                                            if not available_shapes:
+                                                available_shapes = ObjectGenerator.SHAPES.copy()
+                                    else:
+                                        obj["color"] = outlier_color
+                                        obj["shape"] = self.rule_gen.rng.choice(ObjectGenerator.SHAPES)
+                            
+                            # Size range already restored above for L1/L2/L3/L4
+                            if level not in ["L1", "L2", "L3", "L4"]:
+                                if retry_original_min is not None and retry_original_max is not None:
+                                    self.object_gen.min_size = retry_original_min
+                                    self.object_gen.max_size = retry_original_max
                         continue  # Retry with new objects
             else:
                 # For L1, L2, L3, we should have generated rule and prompt successfully

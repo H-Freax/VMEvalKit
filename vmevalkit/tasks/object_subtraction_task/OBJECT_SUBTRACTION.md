@@ -33,15 +33,11 @@ Models must:
 ### Level 1: Explicit Specificity ✅ (Implemented)
 
 **Task Type:**  
-Remove objects defined by **explicit visual attributes** (e.g., color, shape, size).
+Remove objects defined by **explicit visual attributes** (color or shape only).
 
 **Prompt Examples:**
-- "Remove all red objects from the scene. Do not do anything to other objects."
-- "Remove all pyramid objects from the scene. Do not do anything to other objects."
-- "Remove the largest object. Do not do anything to other objects." (when only one largest)
-- "Remove all largest objects. Do not do anything to other objects." (when multiple largest)
-- "Remove the smallest object. Do not do anything to other objects." (when only one smallest)
-- "Remove all smallest objects. Do not do anything to other objects." (when multiple smallest)
+- "Remove all {color} objects from the scene. Do not do anything to other objects." (颜色: red, green, blue, yellow, orange, purple)
+- "Remove all {shape} objects from the scene. Do not do anything to other objects." (形状: cube, sphere, pyramid, cone)
 
 **Example Scene:**
 - **First Frame**: White background with 5-7 colored shapes (red cubes, green spheres, blue pyramids)
@@ -51,18 +47,14 @@ Remove objects defined by **explicit visual attributes** (e.g., color, shape, si
 ```python
 {
   "level": "L1",
-  "rule_type": "color",  # or "shape" or "size"
-  "remove_color": "red",  # or "remove_shape": "cube" or "size_type": "largest"/"smallest"
+  "rule_type": "color",  # or "shape"
+  "remove_color": "red",  # or "remove_shape": "cube"
   "target_object_ids": [0, 1]  # Explicit object IDs to remove
 }
 ```
 
-**Visual Distinction (Size-based rules):**  
-When using size-based rules (largest/smallest), the target object is **visually obvious**:
-- Largest object is at least 12 pixels larger than the second largest
-- Smallest object is at least 12 pixels smaller than the second smallest
-- Objects are actively adjusted during generation to ensure clear visual distinction
-- If size differences cannot be made clear enough, the system falls back to color or shape rules
+**Object Size:**  
+All objects in L1 have uniform size (30 pixels) to focus on color and shape attributes only.
 
 **Cognitive Focus:**  
 Visual recognition · Simple selection · Static invariance
@@ -79,13 +71,17 @@ Remove multiple **explicitly listed** objects by color and shape.
 ### Level 3: Relational Reference ✅ (Implemented)
 
 **Task Type:**  
-Remove objects using **spatial or numeric relations** instead of explicit labels.
+Remove objects using **spatial relations** (edge-based positions) instead of explicit labels.
 
 **Prompt Examples:**
-- "Remove the 2 leftmost objects. Do not do anything to other objects."
-- "Remove the object closest to a corner. Do not do anything to other objects."
-- "Remove the 2 topmost objects. Do not do anything to other objects."
-- "Remove all objects in the upper half of the image. Do not do anything to other objects."
+- "Remove the leftmost object. Do not do anything to other objects."
+- "Remove the {N} leftmost objects. Do not do anything to other objects."
+- "Remove the rightmost object. Do not do anything to other objects."
+- "Remove the {N} rightmost objects. Do not do anything to other objects."
+- "Remove the topmost object. Do not do anything to other objects."
+- "Remove the {N} topmost objects. Do not do anything to other objects."
+- "Remove the bottommost object. Do not do anything to other objects."
+- "Remove the {N} bottommost objects. Do not do anything to other objects."
 
 ### Level 4: Conceptual Abstraction ✅ (Implemented)
 
@@ -94,6 +90,8 @@ Remove objects based on **semantic or conceptual properties** (outlier detection
 
 **Prompt Examples:**
 - "Remove the object that looks different from the others. Do not do anything to other objects."
+
+**Note:** All L4 tasks use the same unified prompt, regardless of the specific type of outlier (combination, shape consistency, or color consistency). This makes the task more abstract - the model needs to figure out what makes the object different.
 
 ## Data Structure
 
@@ -129,31 +127,30 @@ Each task consists of:
 - **Collision Detection**: Ensures objects don't overlap
 - **Grid Fallback**: If random placement fails, uses grid-based layout
 - **Deterministic**: Uses seeds for reproducibility
-- **Size Enhancement (Level 1)**: For size-based rules, objects are actively adjusted to ensure:
-  - Largest object is at least 12 pixels larger than the second largest
-  - Smallest object is at least 12 pixels smaller than the second smallest
-  - Overall size range is at least 15 pixels
-  - This ensures the target object is visually obvious in the scene
+- **Uniform Size**: All objects across all levels (L1, L2, L3, L4) have uniform size (30 pixels) to focus on other attributes (color, shape, position, conceptual properties)
 
 ### Rule Generation
 
 **Level 1:**
 - **Color-based**: Selects a color and finds all objects with that color
 - **Shape-based**: Selects a shape and finds all objects with that shape
-- **Size-based**: Selects largest or smallest objects with **very clear visual distinction**
-  - Minimum 12 pixels difference between largest and second largest (or smallest and second smallest)
-  - Objects are actively adjusted during generation to ensure obvious size differences
-  - If size differences are not clear enough, falls back to color or shape rules
 - **Uniqueness**: Each rule explicitly lists `target_object_ids` for unambiguous removal
+- **Object Size**: All objects have uniform size (30 pixels) to focus on color and shape attributes
 
 **Level 2:**
-- **Enumerated Selection**: Removes 2-3 explicitly listed objects by color and shape combination
+- **Enumerated Selection**: Removes 1-3 explicitly listed objects by color and shape combination
+- **Object Size**: All objects have uniform size (30 pixels)
 
 **Level 3:**
-- **Spatial Relations**: Removes objects based on spatial positions (leftmost, rightmost, topmost, bottommost, corners, quadrants, distance from center)
+- **Spatial Relations**: Removes objects based on edge-based spatial positions (leftmost, rightmost, topmost, bottommost only)
+- **Object Size**: All objects have uniform size (30 pixels)
 
 **Level 4:**
-- **Outlier Detection**: Removes the object that looks different from others (based on color+shape majority)
+- **Combination Outlier Detection**: Removes the object that looks different from others (based on color+shape combination majority)
+- **Shape Consistency Outlier**: Removes the object with different shape (majority has same shape but different colors)
+- **Color Consistency Outlier**: Removes the object with different color (majority has same color but different shapes)
+- **Object Size**: All objects have uniform size (30 pixels)
+- **Unified Prompt**: All L4 tasks use the same prompt regardless of outlier type
 
 ### Image Rendering
 

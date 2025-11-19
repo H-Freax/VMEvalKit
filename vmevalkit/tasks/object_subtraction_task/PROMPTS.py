@@ -9,9 +9,6 @@ Modify prompts here to experiment with different instruction styles.
 # Level 1: Explicit Specificity - Remove objects by explicit visual attributes
 PROMPTS_L1 = [
     "Remove all red objects from the scene. Do not do anything to other objects.",
-    "Move all blue objects out of view. Do not do anything to other objects.",
-    "Remove all green objects from the scene. Do not do anything to other objects.",
-    "Take away all yellow objects from the scene. Do not do anything to other objects.",
 ]
 
 # Level 2: Enumerated Selection - Remove multiple explicitly listed objects
