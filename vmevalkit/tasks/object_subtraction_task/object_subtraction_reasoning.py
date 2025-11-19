@@ -360,8 +360,9 @@ class RuleGenerator:
             
             # Minimum visual distinction threshold (in pixels)
             # This ensures the largest/smallest object is clearly visible and distinguishable
-            # Using 5 pixels (about 20% of the 20-40 size range) for reasonable visual distinction
-            MIN_SIZE_DIFFERENCE = 5  # At least 5 pixels difference for clear visual distinction
+            # Using 12 pixels (about 40% of the 20-40 size range) for VERY clear visual distinction
+            # This makes it obvious which object is largest/smallest
+            MIN_SIZE_DIFFERENCE = 12  # At least 12 pixels difference for very clear visual distinction
             
             # If all objects have the same size, fallback to color or shape
             if max_size == min_size:
@@ -1301,6 +1302,88 @@ class ObjectSubtractionGenerator:
             num_objects = random.randint(self.num_objects_range[0], self.num_objects_range[1])
         
         objects = self.object_gen.generate_objects(num_objects, seed=seed)
+        
+        # For L1, enhance size differences to ensure very clear visual distinction
+        # when size-based rules (largest/smallest) are used
+        if level == "L1":
+            sizes = [obj["size"] for obj in objects]
+            max_size = max(sizes)
+            min_size = min(sizes)
+            size_range = max_size - min_size
+            
+            # Target: at least 15 pixels difference between largest and smallest
+            # And at least 12 pixels difference between largest and second largest (or smallest and second smallest)
+            MIN_VISUAL_GAP = 15  # Overall size range
+            MIN_RELATIVE_GAP = 12  # Gap between largest/smallest and next
+            
+            # Find largest and smallest objects
+            largest_objs = [obj for obj in objects if obj["size"] == max_size]
+            smallest_objs = [obj for obj in objects if obj["size"] == min_size]
+            
+            # Get unique sizes sorted
+            unique_sizes = sorted(set(sizes))
+            
+            # Enhance largest object to be very obvious
+            if len(largest_objs) > 0 and len(unique_sizes) >= 2:
+                largest_obj = largest_objs[0]
+                second_largest = unique_sizes[-2]
+                current_gap = max_size - second_largest
+                
+                if current_gap < MIN_RELATIVE_GAP:
+                    # Make largest even larger
+                    target_largest = min(self.object_gen.max_size, second_largest + MIN_RELATIVE_GAP)
+                    largest_obj["size"] = target_largest
+                    # Update area
+                    if largest_obj["shape"] == "cube":
+                        largest_obj["area"] = target_largest * target_largest
+                    elif largest_obj["shape"] == "sphere":
+                        largest_obj["area"] = int(np.pi * (target_largest // 2) ** 2)
+                    elif largest_obj["shape"] == "pyramid":
+                        largest_obj["area"] = int(target_largest * target_largest * 0.433)
+                    else:  # cone
+                        largest_obj["area"] = int(np.pi * (target_largest // 2) ** 2)
+            
+            # Enhance smallest object to be very obvious
+            if len(smallest_objs) > 0 and len(unique_sizes) >= 2:
+                smallest_obj = smallest_objs[0]
+                second_smallest = unique_sizes[1]
+                current_gap = second_smallest - min_size
+                
+                if current_gap < MIN_RELATIVE_GAP:
+                    # Make smallest even smaller
+                    target_smallest = max(self.object_gen.min_size, second_smallest - MIN_RELATIVE_GAP)
+                    smallest_obj["size"] = target_smallest
+                    # Update area
+                    if smallest_obj["shape"] == "cube":
+                        smallest_obj["area"] = target_smallest * target_smallest
+                    elif smallest_obj["shape"] == "sphere":
+                        smallest_obj["area"] = int(np.pi * (target_smallest // 2) ** 2)
+                    elif smallest_obj["shape"] == "pyramid":
+                        smallest_obj["area"] = int(target_smallest * target_smallest * 0.433)
+                    else:  # cone
+                        smallest_obj["area"] = int(np.pi * (target_smallest // 2) ** 2)
+            
+            # Ensure overall size range is large enough
+            sizes_after = [obj["size"] for obj in objects]
+            max_size_after = max(sizes_after)
+            min_size_after = min(sizes_after)
+            range_after = max_size_after - min_size_after
+            
+            if range_after < MIN_VISUAL_GAP:
+                # Further enhance: make largest even larger or smallest even smaller
+                if len(largest_objs) > 0:
+                    largest_obj = largest_objs[0]
+                    target_largest = min(self.object_gen.max_size, min_size_after + MIN_VISUAL_GAP)
+                    largest_obj["size"] = target_largest
+                    # Update area
+                    if largest_obj["shape"] == "cube":
+                        largest_obj["area"] = target_largest * target_largest
+                    elif largest_obj["shape"] == "sphere":
+                        largest_obj["area"] = int(np.pi * (target_largest // 2) ** 2)
+                    elif largest_obj["shape"] == "pyramid":
+                        largest_obj["area"] = int(target_largest * target_largest * 0.433)
+                    else:  # cone
+                        largest_obj["area"] = int(np.pi * (target_largest // 2) ** 2)
         
         # For L4, actively create a clear majority to ensure outlier detection works
         # This ensures we can generate proper L4 tasks (remove_outlier)
