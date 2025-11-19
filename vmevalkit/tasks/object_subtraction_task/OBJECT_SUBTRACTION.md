@@ -100,7 +100,7 @@ Remove objects based on **semantic or conceptual properties** (outlier detection
 Each task consists of:
 ```python
 {
-    "id": "object_subtraction_l1_0001",
+    "id": "object_subtraction_type1_0001",
     "prompt": "Remove all red objects...",
     "first_image_path": "path/to/first_frame.png",
     "final_image_path": "path/to/final_frame.png",
@@ -221,6 +221,12 @@ data/questions/object_subtraction_task/{task_id}/
 ├── prompt.txt
 └── question_metadata.json
 ```
+
+**Task ID Format:**
+- Type 1 (Attribute Matching): `object_subtraction_type1_0001`, `object_subtraction_type1_0002`, ...
+- Type 2 (Enumerated Selection): `object_subtraction_type2_0001`, `object_subtraction_type2_0002`, ...
+- Type 3 (Spatial Relational): `object_subtraction_type3_0001`, `object_subtraction_type3_0002`, ...
+- Type 4 (Conceptual Abstraction): `object_subtraction_type4_0001`, `object_subtraction_type4_0002`, ...
 
 ## Future Extensions
 
