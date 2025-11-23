@@ -417,13 +417,9 @@ def create_dataset(num_samples: int = 50, difficulty_distribution: Optional[Dict
     print(f"   Total samples: {num_samples}")
     
     # Use system temporary directory
-    # Note: We keep the generator object alive to prevent __del__ from deleting temp files
-    # The temp directory will be cleaned up by dataset.py after copying files
+    # The temp directory will be cleaned up at the end of this function
     generator = SlidingPuzzleGenerator(temp_dir=None)
     pairs = []
-    
-    # Store generator reference to prevent premature cleanup
-    _generator_ref = generator
     
     # Track seen states to avoid duplicates
     seen_states = set()
@@ -540,12 +536,15 @@ def create_dataset(num_samples: int = 50, difficulty_distribution: Optional[Dict
     # Convert dataclass instances to dictionaries for serialization
     pairs_dict = [asdict(pair) for pair in pairs]
     
-    # Return dataset with generator reference for cleanup
+    # Clean up temporary directory before returning
+    # This should be done in the task-specific function, not in the main dataset.py
+    generator.cleanup_temp_dir()
+    
+    # Return dataset without generator reference
     dataset = {
         "name": "sliding_puzzle_tasks",
         "description": f"Sliding puzzle dataset ({len(pairs)} pairs)",
-        "pairs": pairs_dict,
-        "_generator": generator  # Keep reference for cleanup
+        "pairs": pairs_dict
     }
     
     return dataset
