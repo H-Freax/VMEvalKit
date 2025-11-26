@@ -337,15 +337,15 @@ HUNYUAN_VIDEO_MODELS = {
 }
 
 # SGLang Models (Experimental - supports Hunyuan, Wan-series, FastWan)
-# Note: SGLang currently has known issues (see https://github.com/sgl-project/sglang/issues/12850)
-# and requires Docker. Implementation is experimental until bugs are fixed.
+# Note: SGLang Issue #12850 has been fixed (closed on 2025-11-09).
+# This implementation is ready for testing. SGLang may require Docker for some models.
 SGLANG_MODELS = {
     "sglang-hunyuan-video-i2v": {
         "wrapper_module": "vmevalkit.models.sglang_inference",
         "wrapper_class": "SGLangWrapper",
         "service_class": "SGLangService",
         "model": "hunyuan-video-i2v",
-        "description": "HunyuanVideo-I2V via SGLang (Experimental - requires Docker, has known bugs)",
+        "description": "HunyuanVideo-I2V via SGLang (Experimental - requires Docker, Issue #12850 fixed)",
         "family": "SGLang",
         "args": {
             "use_docker": True
@@ -356,7 +356,7 @@ SGLANG_MODELS = {
         "wrapper_class": "SGLangWrapper",
         "service_class": "SGLangService",
         "model": "wan-2.1",
-        "description": "WAN 2.1 via SGLang (Experimental - requires Docker, has known bugs)",
+        "description": "WAN 2.1 via SGLang (Experimental - requires Docker, Issue #12850 fixed)",
         "family": "SGLang",
         "args": {
             "use_docker": True
@@ -367,7 +367,7 @@ SGLANG_MODELS = {
         "wrapper_class": "SGLangWrapper",
         "service_class": "SGLangService",
         "model": "wan-2.2",
-        "description": "WAN 2.2 via SGLang (Experimental - requires Docker, has known bugs)",
+        "description": "WAN 2.2 via SGLang (Experimental - requires Docker, Issue #12850 fixed)",
         "family": "SGLang",
         "args": {
             "use_docker": True
@@ -378,7 +378,7 @@ SGLANG_MODELS = {
         "wrapper_class": "SGLangWrapper",
         "service_class": "SGLangService",
         "model": "fastwan",
-        "description": "FastWan via SGLang (Experimental - requires Docker, has known bugs)",
+        "description": "FastWan via SGLang (Experimental - requires Docker, Issue #12850 fixed)",
         "family": "SGLang",
         "args": {
             "use_docker": True

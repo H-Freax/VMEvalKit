@@ -4,12 +4,13 @@ SGLang Inference Service for VMEvalKit
 Wrapper for SGLang to support video models: Wan-series, FastWan, Hunyuan, etc.
 SGLang provides support for video models that are not available in diffusers.
 
-Note: SGLang currently has known issues (see https://github.com/sgl-project/sglang/issues/12850)
-and requires Docker. This implementation includes error handling and fallback mechanisms.
+Note: SGLang Issue #12850 has been fixed (closed on 2025-11-09). 
+This implementation is ready for testing. SGLang may require Docker for some models.
 
 Reference:
 - https://lmsys.org/blog/2025-11-07-sglang-diffusion/
 - https://github.com/sgl-project/sglang/blob/main/python/sglang/multimodal_gen/docs/cli.md
+- Issue #12850: https://github.com/sgl-project/sglang/issues/12850 (fixed)
 """
 
 import os
@@ -119,8 +120,8 @@ class SGLangService:
         Run SGLang inference for video generation.
         
         Attempts to use SGLang CLI or Python API to generate video.
-        Note: SGLang has known bugs (see https://github.com/sgl-project/sglang/issues/12850)
-        which may cause this to fail even with correct implementation.
+        Note: SGLang Issue #12850 has been fixed (closed on 2025-11-09).
+        This implementation is ready for testing.
         
         Args:
             image_path: Path to input image
@@ -180,9 +181,9 @@ class SGLangService:
         try:
             import sglang
             
-            logger.warning(
-                "SGLang inference is experimental and may have bugs. "
-                "See https://github.com/sgl-project/sglang/issues/12850"
+            logger.info(
+                "SGLang inference: Issue #12850 has been fixed (closed on 2025-11-09). "
+                "Implementation is ready for testing."
             )
             
             # Method 1: Try SGLang CLI command (if available)
@@ -384,48 +385,29 @@ class SGLangService:
                 # Fall through to error handling
             except Exception as e:
                 logger.error(f"SGLang Python API failed: {str(e)}")
-                # Check if this is the known bug
-                error_str = str(e).lower()
-                if "12850" in error_str or "bug" in error_str or "not implemented" in error_str:
-                    return {
-                        "success": False,
-                        "video_path": None,
-                        "error": f"SGLang inference failed due to known bug: {str(e)}. See https://github.com/sgl-project/sglang/issues/12850",
-                        "duration_seconds": time.time() - start_time,
-                        "generation_id": f"sglang_error_{timestamp}",
-                        "model": self.model_id,
-                        "status": "failed",
-                        "metadata": {
-                            "text_prompt": text_prompt,
-                            "image_path": str(image_path),
-                            "sglang_model": self.sglang_model,
-                            "method": "python_api",
-                            "exception": str(e),
-                        }
+                # Return error information
+                return {
+                    "success": False,
+                    "video_path": None,
+                    "error": f"SGLang Python API inference failed: {str(e)}. Issue #12850 has been fixed, please check your SGLang installation and configuration.",
+                    "duration_seconds": time.time() - start_time,
+                    "generation_id": f"sglang_error_{timestamp}",
+                    "model": self.model_id,
+                    "status": "failed",
+                    "metadata": {
+                        "text_prompt": text_prompt,
+                        "image_path": str(image_path),
+                        "sglang_model": self.sglang_model,
+                        "method": "python_api",
+                        "exception": str(e),
                     }
-                else:
-                    return {
-                        "success": False,
-                        "video_path": None,
-                        "error": f"SGLang Python API inference failed: {str(e)}",
-                        "duration_seconds": time.time() - start_time,
-                        "generation_id": f"sglang_error_{timestamp}",
-                        "model": self.model_id,
-                        "status": "failed",
-                        "metadata": {
-                            "text_prompt": text_prompt,
-                            "image_path": str(image_path),
-                            "sglang_model": self.sglang_model,
-                            "method": "python_api",
-                            "exception": str(e),
-                        }
-                    }
+                }
             
             # If both methods failed, return generic error
             return {
                 "success": False,
                 "video_path": None,
-                "error": "SGLang inference failed: Both CLI and Python API methods failed. This may be due to known bugs (see https://github.com/sgl-project/sglang/issues/12850)",
+                "error": "SGLang inference failed: Both CLI and Python API methods failed. Issue #12850 has been fixed, please check your SGLang installation and configuration.",
                 "duration_seconds": time.time() - start_time,
                 "generation_id": f"sglang_error_{timestamp}",
                 "model": self.model_id,
