@@ -114,9 +114,6 @@ python examples/generate_videos.py --model svd --task chess maze
 
 # open source VLM Automated scoring
 bash script/lmdeploy_server.sh
-# in another terminal
-bash script/score.sh
-
 
 # Human scoring via web interface
 python examples/score_videos.py human

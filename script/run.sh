@@ -10,5 +10,3 @@ python examples/generate_videos.py --model svd --task chess maze
 # for generate all video for all task.
 python examples/generate_videos.py --model svd --task chess maze --all-tasks
 
-
-python examples/score_videos.py gpt4o
