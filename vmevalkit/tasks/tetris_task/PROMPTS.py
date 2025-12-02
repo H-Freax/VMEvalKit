@@ -8,7 +8,11 @@ Modify prompts here to experiment with different instruction styles.
 PROMPTS = [
     (
         "Given a {n}x{n} Tetris map, determine whether any complete line(s) will be "
-        "cleared after a new block locks. Difficulty: {difficulty}. "
+        "cleared after a new block locks. Difficulty: {difficulty}.\n\n"
+        "Difficulty levels explained:\n"
+        "- Easy: 5x5 map with 2 bottom rows pre-filled. Simulate line clearing only.\n"
+        "- Medium: 10x10 map with 3 bottom rows pre-filled. Simulate line clearing only.\n"
+        "- Hard: Larger map with a new block falling from above. Simulate both block drop AND line clearing.\n\n"
         "If lines are cleared, simulate the elimination process and provide the final map. "
         "IMPORTANT (for visualization): when a line is cleared, animate that row by briefly "
         "flashing or highlighting the cleared cells and then removing them in-place — do NOT "

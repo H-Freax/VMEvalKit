@@ -781,7 +781,7 @@ class TetrisTaskGenerator:
         return self.generator.generate_dataset(num_samples)
 
 def create_dataset(num_samples: int = 10) -> Dict[str, Any]:
-    generator = TetrisTaskGenerator(difficulty="easy")
+    generator = TetrisTaskGenerator(difficulty="medium")
     return generator.generate_dataset(num_samples)
 
 
