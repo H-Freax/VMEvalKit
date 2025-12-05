@@ -160,6 +160,25 @@ TASK_REGISTRY = {
         'create_function': 'create_dataset',
         'process_dataset': lambda dataset, num_samples: dataset['pairs']
     },
+    'counting_objects': {
+        'name': 'Counting Circles',
+        'description': 'Visual counting of Objects',
+        'module': 'vmevalkit.tasks.counting_objects_task',
+        'create_function': 'create_dataset',
+        'process_dataset': lambda dataset, num_samples: dataset['pairs']
+    },
+    'letter_counting': {
+        'name': 'Letter Counting',
+        'description': 'Count letter occurrences in words',
+        'module': 'vmevalkit.tasks.letter_counting_task',
+        'create_function': 'create_dataset',
+        'process_dataset': lambda dataset, num_samples: dataset['pairs']
+    },
+    'subway_pathfinding': {
+        'name': 'Subway Pathfinding',
+        'description': 'Navigate through subway networks from source to destination',
+        'module': 'vmevalkit.tasks.subway_pathfinding_task',
+    },
     'light_sequence': {
         'name': 'Light Sequence',
         'description': 'Spatial reasoning and mathematical pattern recognition with light sequences',
