@@ -10,6 +10,11 @@ Model variants:
 - sana-video-2b-480p: Base short-video model (~5 seconds, 81 frames)
 - sana-video-2b-longlive: Extended length via block linear KV-cache
 
+Performance: ~22GB VRAM, ~4 minutes on RTX A6000 (50 steps)
+
+Requirements:
+- diffusers>=0.36.0
+
 References:
 - HuggingFace: https://huggingface.co/Efficient-Large-Model/SANA-Video_2B_480p_diffusers
 - GitHub: https://github.com/NVlabs/Sana
@@ -30,9 +35,21 @@ class SanaVideoService:
     
     Uses SanaImageToVideoPipeline for text+image conditioned video generation.
     The same 2B backbone supports text-only, image-only, and text+image modes.
+    
+    Features:
+    - Motion score control for video dynamics
+    - Negative prompt support
+    - Seed-based reproducibility
+    - Automatic image resizing to model constraints
+    - Memory-optimized VAE (float32) for stability
     """
     
     def __init__(self, model: str = "Efficient-Large-Model/SANA-Video_2B_480p_diffusers"):
+        """Initialize SANA-Video service.
+        
+        Args:
+            model: HuggingFace model ID for SANA-Video
+        """
         self.model_id = model
         self.pipe = None
         self.device = None
@@ -48,7 +65,11 @@ class SanaVideoService:
         }
     
     def _load_model(self):
-        """Lazy load the SANA-Video pipeline."""
+        """Lazy load the SANA-Video pipeline with optimized dtypes.
+        
+        Uses bfloat16 for transformer and text encoder, float32 for VAE
+        to balance memory usage and numerical stability.
+        """
         if self.pipe is not None:
             return
         
@@ -58,20 +79,34 @@ class SanaVideoService:
         
         if torch.cuda.is_available():
             self.device = "cuda"
-            torch_dtype = torch.bfloat16
+            transformer_dtype = torch.bfloat16
+            encoder_dtype = torch.bfloat16
+            vae_dtype = torch.float32  # Keep VAE at float32 for stability
         else:
             self.device = "cpu"
-            torch_dtype = torch.float32
+            transformer_dtype = torch.float32
+            encoder_dtype = torch.float32
+            vae_dtype = torch.float32
         
-        self.pipe = SanaImageToVideoPipeline.from_pretrained(
-            self.model_id,
-            torch_dtype=torch_dtype
-        )
+        # Load pipeline and optimize component dtypes
+        self.pipe = SanaImageToVideoPipeline.from_pretrained(self.model_id)
+        self.pipe.transformer.to(transformer_dtype)
+        self.pipe.text_encoder.to(encoder_dtype)
+        self.pipe.vae.to(vae_dtype)
         self.pipe.to(self.device)
+        
         logger.info(f"SANA-Video model loaded on {self.device}")
+        logger.info(f"Dtypes - Transformer: {transformer_dtype}, Encoder: {encoder_dtype}, VAE: {vae_dtype}")
     
     def _prepare_image(self, image_path: Union[str, Path]):
-        """Load and prepare image for inference."""
+        """Load and prepare image for inference.
+        
+        Args:
+            image_path: Path to input image
+            
+        Returns:
+            PIL Image resized to model constraints (832x480)
+        """
         from diffusers.utils import load_image
         from PIL import Image
         
@@ -96,6 +131,9 @@ class SanaVideoService:
         num_inference_steps: Optional[int] = None,
         guidance_scale: Optional[float] = None,
         fps: Optional[int] = None,
+        negative_prompt: Optional[str] = None,
+        motion_score: Optional[int] = None,
+        seed: Optional[int] = None,
         output_path: Optional[Path] = None,
         **kwargs
     ) -> Dict[str, Any]:
@@ -110,6 +148,9 @@ class SanaVideoService:
             num_inference_steps: Denoising steps (default: 20)
             guidance_scale: Classifier-free guidance scale (default: 4.5)
             fps: Output video FPS (default: 16)
+            negative_prompt: Negative prompt for generation control
+            motion_score: Motion intensity score (0-100, appended to prompt)
+            seed: Random seed for reproducibility
             output_path: Path to save output video
             **kwargs: Additional pipeline arguments
             
@@ -130,19 +171,42 @@ class SanaVideoService:
         guidance_scale = guidance_scale or self.model_constraints["guidance_scale"]
         fps = fps or self.model_constraints["fps"]
         
-        logger.info(f"Generating video with prompt: {text_prompt[:80]}...")
+        # Compose prompt with motion score if provided
+        composed_prompt = text_prompt
+        if motion_score is not None:
+            motion_prompt = f" motion score: {motion_score}."
+            composed_prompt = text_prompt + motion_prompt
+            logger.info(f"Using motion score: {motion_score}")
+        
+        logger.info(f"Generating video with prompt: {composed_prompt[:80]}...")
         logger.info(f"Dimensions: {width}x{height}, frames={num_frames}, steps={num_inference_steps}")
         
-        # Generate using SanaImageToVideoPipeline (text+image conditioning)
-        output = self.pipe(
-            image=image,
-            prompt=text_prompt,
-            height=height,
-            width=width,
-            num_frames=num_frames,
-            num_inference_steps=num_inference_steps,
-            guidance_scale=guidance_scale,
-        )
+        # Setup generator for reproducibility
+        import torch
+        generator = None
+        if seed is not None:
+            generator = torch.Generator(device=self.device).manual_seed(seed)
+            logger.info(f"Using seed: {seed}")
+        
+        # Generate using SanaImageToVideoPipeline
+        pipeline_kwargs = {
+            "image": image,
+            "prompt": composed_prompt,
+            "height": height,
+            "width": width,
+            "num_frames": num_frames,
+            "num_inference_steps": num_inference_steps,
+            "guidance_scale": guidance_scale,
+        }
+        
+        if negative_prompt:
+            pipeline_kwargs["negative_prompt"] = negative_prompt
+            logger.info(f"Using negative prompt: {negative_prompt[:50]}...")
+        
+        if generator is not None:
+            pipeline_kwargs["generator"] = generator
+        
+        output = self.pipe(**pipeline_kwargs)
         frames = output.frames[0]
         
         video_path = None
@@ -168,7 +232,10 @@ class SanaVideoService:
                 "guidance_scale": guidance_scale,
                 "height": height,
                 "width": width,
-                "image_size": image.size
+                "image_size": image.size,
+                "motion_score": motion_score,
+                "seed": seed,
+                "negative_prompt": negative_prompt
             }
         }
 
@@ -177,6 +244,11 @@ class SanaVideoWrapper(ModelWrapper):
     """Wrapper for SANA-Video models conforming to VMEvalKit interface.
     
     Supports both base 480p model and LongLive extended variant.
+    Provides advanced features:
+    - Motion score control for video dynamics
+    - Negative prompt support
+    - Reproducible generation via seed
+    - Automatic parameter optimization
     """
     
     def __init__(
@@ -185,11 +257,14 @@ class SanaVideoWrapper(ModelWrapper):
         output_dir: str = "./data/outputs",
         **kwargs
     ):
-        self.model = model
-        self.output_dir = Path(output_dir)
-        self.output_dir.mkdir(exist_ok=True, parents=True)
-        self.kwargs = kwargs
+        """Initialize SANA-Video wrapper.
         
+        Args:
+            model: HuggingFace model ID
+            output_dir: Directory for output videos
+            **kwargs: Additional configuration parameters
+        """
+        super().__init__(model=model, output_dir=output_dir, **kwargs)
         self.sana_service = SanaVideoService(model=model)
     
     def generate(
@@ -207,7 +282,16 @@ class SanaVideoWrapper(ModelWrapper):
             text_prompt: Text description for video generation
             duration: Desired video duration in seconds (used to calculate frames)
             output_filename: Custom output filename (auto-generated if not provided)
-            **kwargs: Additional parameters passed to service
+            **kwargs: Additional parameters:
+                - num_frames: Override frame count
+                - fps: Frames per second (default: 16)
+                - height: Video height (default: 480)
+                - width: Video width (default: 832)
+                - num_inference_steps: Denoising steps (default: 20)
+                - guidance_scale: CFG scale (default: 4.5)
+                - negative_prompt: Negative prompt for control
+                - motion_score: Motion intensity (0-100)
+                - seed: Random seed for reproducibility
             
         Returns:
             Dictionary with success, video_path, error, duration_seconds,
@@ -222,6 +306,9 @@ class SanaVideoWrapper(ModelWrapper):
         width = kwargs.pop("width", None)
         num_inference_steps = kwargs.pop("num_inference_steps", None)
         guidance_scale = kwargs.pop("guidance_scale", None)
+        negative_prompt = kwargs.pop("negative_prompt", None)
+        motion_score = kwargs.pop("motion_score", None)
+        seed = kwargs.pop("seed", None)
         
         # Calculate frames from duration if not specified
         if num_frames is None:
@@ -244,6 +331,9 @@ class SanaVideoWrapper(ModelWrapper):
             num_inference_steps=num_inference_steps,
             guidance_scale=guidance_scale,
             fps=fps,
+            negative_prompt=negative_prompt,
+            motion_score=motion_score,
+            seed=seed,
             output_path=output_path,
             **kwargs
         )
@@ -266,4 +356,3 @@ class SanaVideoWrapper(ModelWrapper):
                 "sana_result": result
             }
         }
-
