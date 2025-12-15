@@ -185,6 +185,8 @@ TASK_REGISTRY = {
         'name': 'Subway Pathfinding',
         'description': 'Navigate through subway networks from source to destination',
         'module': 'vmevalkit.tasks.subway_pathfinding_task',
+        'create_function': 'create_dataset',
+        'process_dataset': lambda dataset, num_samples: dataset['pairs']
     },
     'light_sequence': {
         'name': 'Light Sequence',
@@ -197,6 +199,9 @@ TASK_REGISTRY = {
         'name': 'Dot to Dot',
         'description': 'Sequential dot connection to reveal patterns',
         'module': 'vmevalkit.tasks.dot_to_dot_task',
+        'create_function': 'create_dataset',
+        'process_dataset': lambda dataset, num_samples: dataset['pairs']
+    },
     'tower_of_hanoi': {
         'name': 'Tower of Hanoi',
         'description': 'Single-move planning and constraint satisfaction',
