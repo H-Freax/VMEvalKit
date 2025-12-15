@@ -35,6 +35,7 @@ Examples:
   ./setup/install_model.sh --model ltx-video
   ./setup/install_model.sh --model ltx-video --validate
   ./setup/install_model.sh --opensource
+  ./setup/install_model.sh --commercial
   ./setup/install_model.sh --opensource --validate
   ./setup/install_model.sh --commercial --validate
   ./setup/install_model.sh --all

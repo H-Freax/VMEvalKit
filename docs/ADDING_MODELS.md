@@ -622,13 +622,32 @@ GCP_LOCATION=us-central1
 
 ## ✅ Testing Your Integration
 
-### Testing Open-Source Models
+### Quick Testing (Recommended)
 
-For open-source models, test the setup script first:
+Install and validate in one command:
 
 ```bash
-# 1. Test installation script
-bash setup/models/your-model-name/setup.sh
+# Install and test any model
+bash setup/install_model.sh --model your-model-name --validate
+
+# Test multiple models
+bash setup/install_model.sh --opensource --validate
+bash setup/install_model.sh --all --validate
+```
+
+This runs the full validation:
+1. Installs the model (creates venv, downloads weights)
+2. Generates 2 test videos using `examples/generate_videos.py`
+3. Verifies output quality
+4. Reports pass/fail
+
+### Manual Testing Steps
+
+For detailed verification without using `--validate`:
+
+```bash
+# 1. Install the model
+bash setup/install_model.sh --model your-model-name
 
 # 2. Verify virtual environment was created
 ls -la envs/your-model-name/bin/python
@@ -636,13 +655,13 @@ source envs/your-model-name/bin/activate
 python -c "import torch; print(torch.__version__)"
 deactivate
 
-# 3. Verify checkpoints were downloaded
+# 3. Verify checkpoints were downloaded (open-source only)
 ls -lh weights/your-model/
 
 # 4. Verify submodule (if applicable)
 ls -la submodules/YourModel/
 
-# 5. Run built-in validation
+# 5. Run manual validation
 python examples/generate_videos.py \
     --model your-model-name \
     --task-id tests_0001 tests_0002
@@ -653,13 +672,16 @@ ls -la data/outputs/pilot_experiment/your-model-name/tests_task/
 
 ### Testing Commercial API Models
 
-For commercial models, test API connectivity first:
+For commercial models, verify API key first:
 
 ```bash
 # 1. Verify API key is set
 echo $YOUR_PROVIDER_API_KEY
 
-# 2. Run quick test
+# 2. Install and test
+bash setup/install_model.sh --model your-provider-model --validate
+
+# Or test manually
 python examples/generate_videos.py \
     --model your-provider-model \
     --task-id tests_0001
