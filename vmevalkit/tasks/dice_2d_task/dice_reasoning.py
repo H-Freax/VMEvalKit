@@ -163,14 +163,6 @@ class MultiDiceReasoningGenerator:
 
     OPPOSITE_MAP = {1: 6, 2: 5, 3: 4, 4: 3, 5: 2, 6: 1}
 
-    # Difficulty configuration
-    DIFFICULTY_CONFIG = {
-        'easy': {'num_dice': 1, 'prompts': 'EASY_PROMPTS'},
-        'medium': {'num_dice': 2, 'prompts': 'MEDIUM_PROMPTS'},
-        'hard': {'num_dice': 3, 'prompts': 'HARD_PROMPTS'},
-        'expert': {'num_dice': 4, 'prompts': 'EXPERT_PROMPTS'}
-    }
-
     def __init__(self, seed: Optional[int] = None):
         if seed is not None:
             random.seed(seed)
@@ -263,6 +255,7 @@ class MultiDiceReasoningGenerator:
         dice = self.generate_dice_values(3, constraint='unique')
         sorted_dice = sorted(dice)
 
+        # For 3 dice: second_largest = second_smallest = middle, so only use 'middle'
         task_types = [
             ('largest', sorted_dice[2], "Show the opposite of the largest dice."),
             ('smallest', sorted_dice[0], "Show the opposite of the smallest dice."),
@@ -271,12 +264,6 @@ class MultiDiceReasoningGenerator:
             ('dice_b', dice[1], "Show the opposite of dice B."),
             ('dice_c', dice[2], "Show the opposite of dice C."),
         ]
-
-        # Add second largest/smallest
-        task_types.append(('second_largest', sorted_dice[1],
-            "Show the opposite of the second largest dice."))
-        task_types.append(('second_smallest', sorted_dice[1],
-            "Show the opposite of the second smallest dice."))
 
         task_type, target, prompt = random.choice(task_types)
         answer = self.get_opposite(target)
@@ -304,12 +291,6 @@ class MultiDiceReasoningGenerator:
             ('dice_c', dice[2], "Show the opposite of dice C."),
             ('dice_d', dice[3], "Show the opposite of dice D."),
         ]
-
-        # Add sum-based selection if possible
-        for i, d in enumerate(dice):
-            label = chr(65 + i)
-            if d == sum(dice) - d:  # Check if any dice equals sum of others (rare)
-                pass
 
         task_type, target, prompt = random.choice(task_types)
         answer = self.get_opposite(target)
@@ -422,11 +403,11 @@ def calculate_unique_combinations() -> Dict[str, int]:
     }
 
     # Hard: 3 unique dice × prompt types
-    # C(6,3) = 20 combinations × 3! arrangements = 120, ~8 prompt types
+    # P(6,3) = 120 arrangements, 6 prompt types (largest, smallest, middle, A, B, C)
     counts['hard'] = {
         'dice_combinations': 6 * 5 * 4,  # P(6,3) = 120
-        'prompt_variations': 8,
-        'total': 120 * 8  # 960
+        'prompt_variations': 6,
+        'total': 120 * 6  # 720
     }
 
     # Expert: 4 unique dice × prompt types

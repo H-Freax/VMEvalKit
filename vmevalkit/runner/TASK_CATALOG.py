@@ -156,7 +156,9 @@ TASK_REGISTRY = {
     '2d_dice_reasoning': {
         'name': '2D Dice Reasoning',
         'description': '2D dice opposite face spatial reasoning and logical deduction (opposite faces sum to 7)',
-        'module': 'vmevalkit.tasks.dice_2d_task'
+        'module': 'vmevalkit.tasks.dice_2d_task',
+        'create_function': 'create_dataset',
+        'process_dataset': lambda dataset, num_samples: dataset['pairs']
     },
     'tetris': {
         'name': 'Tetris',
