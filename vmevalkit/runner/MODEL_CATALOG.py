@@ -402,9 +402,9 @@ MORPHIC_MODELS = {
         "description": "Morphic Frames to Video - High-quality interpolation using Wan2.2",
         "family": "Morphic",
         "args": {
-            "size": "1280*720",
-            "frame_num": 81,
-            "nproc_per_node": 8
+            "size": "480*832",  # Reduced from 1280*720 to lower memory usage
+            "frame_num": 49  # Reduced from 81 to lower memory usage (must be 4n+1)
+            # nproc_per_node auto-detected from available GPUs
         }
     }
 }
