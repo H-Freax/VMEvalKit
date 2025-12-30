@@ -87,6 +87,20 @@ TASK_REGISTRY = {
         'create_function': 'create_dataset',
         'process_dataset': lambda dataset, num_samples: dataset['pairs']
     },
+    'majority_color': {
+        'name': 'Majority Color',
+        'description': 'Recolor all objects to match the most common color in the scene',
+        'module': 'vmevalkit.tasks.majority_color_task',
+        'create_function': 'create_dataset',
+        'process_dataset': lambda dataset, num_samples: dataset['pairs']
+    },
+    'grid_shift': {
+        'name': 'Grid Shift',
+        'description': 'Shift all blocks 1-2 steps in a random direction within a 6x6 grid',
+        'module': 'vmevalkit.tasks.grid_shift_task',
+        'create_function': 'create_dataset',
+        'process_dataset': lambda dataset, num_samples: dataset['pairs']
+    },
     'shape_sorter': {
         'name': 'Shape Sorter',
         'description': '2D shape matching under a fixed top-down camera',
@@ -153,6 +167,13 @@ TASK_REGISTRY = {
         'hf_dataset': 'camelCase12/vpct-1',
         'hf_special_format': True  # Indicates file-based format, not standard dataset format
     },
+    '2d_dice_reasoning': {
+        'name': '2D Dice Reasoning',
+        'description': '2D dice opposite face spatial reasoning and logical deduction (opposite faces sum to 7)',
+        'module': 'vmevalkit.tasks.dice_2d_task',
+        'create_function': 'create_dataset',
+        'process_dataset': lambda dataset, num_samples: dataset['pairs']
+    },
     'tetris': {
         'name': 'Tetris',
         'description': 'Tetris line-clearing reasoning tasks with animation instructions',
@@ -193,12 +214,32 @@ TASK_REGISTRY = {
         'create_function': 'create_dataset',
         'process_dataset': lambda dataset, num_samples: dataset['pairs']
     },
+    'dot_to_dot': {
+        'name': 'Dot to Dot',
+        'description': 'Sequential dot connection to reveal patterns',
+        'module': 'vmevalkit.tasks.dot_to_dot_task',
+        'create_function': 'create_dataset',
+        'process_dataset': lambda dataset, num_samples: dataset['pairs']
+    },
+    'symmetry_completion': {
+        'name': 'Symmetry Completion',
+        'description': 'Left-right symmetry reasoning - complete right half by mirroring left half',
+        'module': 'vmevalkit.tasks.symmetry_completion_task',
+        'create_function': 'create_dataset',
+        'process_dataset': lambda dataset, num_samples: dataset['pairs']
+    },
     'tower_of_hanoi': {
         'name': 'Tower of Hanoi',
         'description': 'Single-move planning and constraint satisfaction',
         'module': 'vmevalkit.tasks.tower_of_hanoi_task.tower_of_hanoi_reasoning',
         'create_function': 'create_dataset',
         'process_dataset': lambda dataset, num_samples: dataset['pairs']
+    },
+    'rotation_puzzle': {
+        'name': 'Rotation Puzzle',
+        'description': 'Pipe puzzle with rotatable squares to connect paths',
+        'module': 'vmevalkit.tasks.rotation_puzzle_task',
+        'create_function': 'create_dataset',
+        'process_dataset': lambda dataset, num_samples: dataset['pairs']
     }
 }
-
