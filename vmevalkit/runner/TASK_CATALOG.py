@@ -188,6 +188,12 @@ TASK_REGISTRY = {
         'create_function': 'create_dataset',
         'process_dataset': lambda dataset, num_samples: dataset['pairs']
     },
+    'traffic_light': {
+        'name': 'Traffic Light',
+        'description': 'Temporal reasoning, rule application, and coordination understanding with traffic lights',
+        'module': 'vmevalkit.tasks.traffic_light_task',
+        'create_function': 'create_dataset',
+        'process_dataset': lambda dataset, num_samples: dataset['pairs']
     'counting_objects': {
         'name': 'Counting Circles',
         'description': 'Visual counting of Objects',
@@ -214,6 +220,12 @@ TASK_REGISTRY = {
         'create_function': 'create_dataset',
         'process_dataset': lambda dataset, num_samples: dataset['pairs']
     },
+    'sequence_completion': {
+        'name': 'Sequence Completion',
+        'description': 'Pattern recognition and logical extrapolation for sequence completion',
+        'module': 'vmevalkit.tasks.sequence_completion_task',
+        'create_function': 'create_dataset',
+        'process_dataset': lambda dataset, num_samples: dataset['pairs']
     'dot_to_dot': {
         'name': 'Dot to Dot',
         'description': 'Sequential dot connection to reveal patterns',
@@ -241,5 +253,21 @@ TASK_REGISTRY = {
         'module': 'vmevalkit.tasks.rotation_puzzle_task',
         'create_function': 'create_dataset',
         'process_dataset': lambda dataset, num_samples: dataset['pairs']
+    },
+    'nonogram': {
+        'name': 'Nonogram',
+        'description': 'Constraint satisfaction puzzle with row/column hints',
+        'module': 'vmevalkit.tasks.nonogram_task',
+        'create_function': 'create_dataset',
+        'process_dataset': lambda dataset, num_samples: dataset['pairs']
+    'pbench': {
+        'name': 'PBench',
+        'description': 'nvidia/PBench',
+        'module': 'vmevalkit.tasks.external.pbench',
+        'create_function': 'create_dataset',
+        'process_dataset': lambda dataset, num_samples: dataset['pairs'],
+        'hf': True,
+        'hf_dataset': 'nvidia/PBench',
+        'hf_split': 'benchmark'
     }
 }
