@@ -234,5 +234,14 @@ TASK_REGISTRY = {
         'module': 'vmevalkit.tasks.nonogram_task',
         'create_function': 'create_dataset',
         'process_dataset': lambda dataset, num_samples: dataset['pairs']
+    'pbench': {
+        'name': 'PBench',
+        'description': 'nvidia/PBench',
+        'module': 'vmevalkit.tasks.external.pbench',
+        'create_function': 'create_dataset',
+        'process_dataset': lambda dataset, num_samples: dataset['pairs'],
+        'hf': True,
+        'hf_dataset': 'nvidia/PBench',
+        'hf_split': 'benchmark'
     }
 }
