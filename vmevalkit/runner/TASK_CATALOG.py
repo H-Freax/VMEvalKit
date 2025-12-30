@@ -174,6 +174,12 @@ TASK_REGISTRY = {
         'create_function': 'create_dataset',
         'process_dataset': lambda dataset, num_samples: dataset['pairs']
     },
+    'traffic_light': {
+        'name': 'Traffic Light',
+        'description': 'Temporal reasoning, rule application, and coordination understanding with traffic lights',
+        'module': 'vmevalkit.tasks.traffic_light_task',
+        'create_function': 'create_dataset',
+        'process_dataset': lambda dataset, num_samples: dataset['pairs']
     'counting_objects': {
         'name': 'Counting Circles',
         'description': 'Visual counting of Objects',
