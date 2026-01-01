@@ -73,14 +73,3 @@ Register in `vmevalkit/runner/MODEL_CATALOG.py`:
 ## License
 
 Apache 2.0
-
-## Citation
-
-```bibtex
-@misc{VMEvalKit,
-  author = {VMEvalKit Team},
-  title = {VMEvalKit: A framework for evaluating reasoning abilities in foundational video models},
-  year = {2025},
-  url = {https://github.com/Video-Reason/VMEvalKit}
-}
-```
