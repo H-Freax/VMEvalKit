@@ -42,6 +42,7 @@ data/evaluations/
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt
+install_output.txt
 
 # Unit test / coverage reports
 htmlcov/
